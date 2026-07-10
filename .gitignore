@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+
+# Never commit participant or derived private data
+data/raw/**
+data/interim/**
+data/processed/**
+outputs/private/**
+
+# Keep empty directory markers and public synthetic examples
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+!outputs/private/.gitkeep
+
+# Generated reports and local outputs
+outputs/*
+!outputs/.gitkeep
+!outputs/private/
+

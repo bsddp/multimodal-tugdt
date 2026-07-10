@@ -1,0 +1,8 @@
+segment_name,start_time,end_time,source,confidence,notes
+baseline_sitting,0.0,2.0,synthetic,1.0,Demonstration only; not a clinical annotation.
+sit_to_stand,2.0,3.0,synthetic,1.0,Demonstration only; not a clinical annotation.
+outbound_walk,3.0,8.0,synthetic,1.0,Demonstration only; not a clinical annotation.
+turn_1,8.0,10.0,synthetic,1.0,Demonstration only; not a clinical annotation.
+return_walk,10.0,15.0,synthetic,1.0,Demonstration only; not a clinical annotation.
+turn_to_sit,15.0,17.0,synthetic,1.0,Demonstration only; not a clinical annotation.
+final_sitting,17.0,20.0,synthetic,1.0,Demonstration only; not a clinical annotation.

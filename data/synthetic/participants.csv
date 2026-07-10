@@ -1,0 +1,3 @@
+participant_id,session_id,condition,trial_id,imu_path,video_path,audio_path,footswitch_path,annotation_path,clinical_path
+P001,S01,single_task,T01,data/synthetic/P001/S01/T01/imu.csv,,data/synthetic/P001/S01/T01/audio.wav,data/synthetic/P001/S01/T01/footswitch.csv,data/synthetic/P001/S01/T01/annotations.csv,data/synthetic/clinical.csv
+P001,S01,dual_task,T02,data/synthetic/P001/S01/T02/imu.csv,,data/synthetic/P001/S01/T02/audio.wav,data/synthetic/P001/S01/T02/footswitch.csv,data/synthetic/P001/S01/T02/annotations.csv,data/synthetic/clinical.csv

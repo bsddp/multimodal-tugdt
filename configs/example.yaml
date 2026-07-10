@@ -1,0 +1,31 @@
+project:
+  name: multimodal-tugdt
+  root: ".."
+  random_seed: 42
+
+paths:
+  manifest: data/synthetic/participants.csv
+  interim_dir: data/interim
+  processed_dir: data/processed
+  output_dir: outputs
+
+modalities:
+  imu: true
+  video: false
+  audio: true
+  footswitch: true
+  clinical: true
+
+study:
+  allowed_conditions:
+    - single_task
+    - dual_task
+    - motor_only
+    - cognitive_only
+  cognitive_task: serial_subtraction
+
+synthetic:
+  duration_seconds: 20.0
+  imu_sampling_rate_hz: 100
+  audio_sampling_rate_hz: 16000
+
