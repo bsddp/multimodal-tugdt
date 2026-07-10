@@ -13,6 +13,40 @@ class ConfigurationError(ValueError):
     """Raised when a project configuration is missing or malformed."""
 
 
+DEFAULT_IMU_COLUMNS = {
+    "timestamp": "timestamp",
+    "acc_ap": "pelvis_acc_ap",
+    "acc_ml": "pelvis_acc_ml",
+    "acc_vertical": "pelvis_acc_vertical",
+    "gyro_yaw": "pelvis_gyro_yaw",
+    "quat_w": "quat_w",
+    "quat_x": "quat_x",
+    "quat_y": "quat_y",
+    "quat_z": "quat_z",
+}
+
+
+@dataclass(frozen=True)
+class IMUConfig:
+    """Validated settings for IMU ingestion, preprocessing, and basic features."""
+
+    format: str
+    target_sensor: str
+    columns: dict[str, str]
+    target_sampling_rate_hz: float
+    lowpass_cutoff_hz: float
+    filter_order: int
+    input_acceleration_unit: str
+    input_angular_velocity_unit: str
+    gravity_removal: str
+    gravity_value_m_s2: float
+    maximum_abs_acceleration_m_s2: float
+    maximum_abs_angular_velocity_rad_s: float
+    step_min_interval_s: float
+    step_prominence: float
+    generate_plots: bool
+
+
 @dataclass(frozen=True)
 class ProjectConfig:
     """Validated configuration plus reproducible path-resolution rules."""
@@ -24,6 +58,7 @@ class ProjectConfig:
     processed_dir: Path
     output_dir: Path
     allowed_conditions: tuple[str, ...]
+    imu: IMUConfig
     values: dict[str, Any]
 
     def resolve_path(self, value: str | Path) -> Path:
@@ -38,8 +73,91 @@ def _mapping(value: Any, section: str) -> dict[str, Any]:
     return value
 
 
+def _positive_float(value: Any, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
+        raise ConfigurationError(f"'{field}' must be a positive number.")
+    return float(value)
+
+
+def _positive_int(value: Any, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ConfigurationError(f"'{field}' must be a positive integer.")
+    return value
+
+
+def _load_imu_config(root: dict[str, Any]) -> IMUConfig:
+    values = _mapping(root.get("imu", {}), "imu")
+    columns = _mapping(values.get("columns", DEFAULT_IMU_COLUMNS), "imu.columns")
+    if not all(isinstance(key, str) and isinstance(value, str) for key, value in columns.items()):
+        raise ConfigurationError("'imu.columns' keys and values must be strings.")
+    if "timestamp" not in columns:
+        raise ConfigurationError("'imu.columns' must define a timestamp mapping.")
+
+    data_format = values.get("format", "wide_csv")
+    if data_format not in {"wide_csv", "long_csv", "mvnx"}:
+        raise ConfigurationError("'imu.format' must be wide_csv, long_csv, or mvnx.")
+    acceleration_unit = values.get("input_acceleration_unit", "m/s^2")
+    if acceleration_unit not in {"m/s^2", "g"}:
+        raise ConfigurationError("'imu.input_acceleration_unit' must be 'm/s^2' or 'g'.")
+    angular_unit = values.get("input_angular_velocity_unit", "rad/s")
+    if angular_unit not in {"rad/s", "deg/s"}:
+        raise ConfigurationError(
+            "'imu.input_angular_velocity_unit' must be 'rad/s' or 'deg/s'."
+        )
+    gravity_removal = values.get("gravity_removal", "none")
+    if gravity_removal not in {"none", "constant"}:
+        raise ConfigurationError("'imu.gravity_removal' must be 'none' or 'constant'.")
+
+    generate_plots = values.get("generate_plots", True)
+    if not isinstance(generate_plots, bool):
+        raise ConfigurationError("'imu.generate_plots' must be true or false.")
+
+    target_sensor = values.get("target_sensor", "pelvis")
+    if not isinstance(target_sensor, str) or not target_sensor.strip():
+        raise ConfigurationError("'imu.target_sensor' must be a non-empty string.")
+
+    return IMUConfig(
+        format=data_format,
+        target_sensor=target_sensor,
+        columns=dict(columns),
+        target_sampling_rate_hz=_positive_float(
+            values.get("target_sampling_rate_hz", 100),
+            "imu.target_sampling_rate_hz",
+        ),
+        lowpass_cutoff_hz=_positive_float(
+            values.get("lowpass_cutoff_hz", 6),
+            "imu.lowpass_cutoff_hz",
+        ),
+        filter_order=_positive_int(values.get("filter_order", 4), "imu.filter_order"),
+        input_acceleration_unit=acceleration_unit,
+        input_angular_velocity_unit=angular_unit,
+        gravity_removal=gravity_removal,
+        gravity_value_m_s2=_positive_float(
+            values.get("gravity_value_m_s2", 9.80665),
+            "imu.gravity_value_m_s2",
+        ),
+        maximum_abs_acceleration_m_s2=_positive_float(
+            values.get("maximum_abs_acceleration_m_s2", 50),
+            "imu.maximum_abs_acceleration_m_s2",
+        ),
+        maximum_abs_angular_velocity_rad_s=_positive_float(
+            values.get("maximum_abs_angular_velocity_rad_s", 20),
+            "imu.maximum_abs_angular_velocity_rad_s",
+        ),
+        step_min_interval_s=_positive_float(
+            values.get("step_min_interval_s", 0.35),
+            "imu.step_min_interval_s",
+        ),
+        step_prominence=_positive_float(
+            values.get("step_prominence", 0.15),
+            "imu.step_prominence",
+        ),
+        generate_plots=generate_plots,
+    )
+
+
 def load_config(path: str | Path) -> ProjectConfig:
-    """Load a YAML configuration and validate Milestone 1 requirements."""
+    """Load and validate project, path, study, and IMU settings."""
     source = Path(path).expanduser().resolve()
     if not source.is_file():
         raise ConfigurationError(f"Configuration file does not exist: {source}")
@@ -87,5 +205,6 @@ def load_config(path: str | Path) -> ProjectConfig:
         processed_dir=project_path("processed_dir", "data/processed"),
         output_dir=project_path("output_dir", "outputs"),
         allowed_conditions=tuple(allowed),
+        imu=_load_imu_config(root),
         values=root,
     )

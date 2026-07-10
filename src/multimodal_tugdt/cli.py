@@ -11,6 +11,7 @@ from multimodal_tugdt import __version__
 from multimodal_tugdt.config import ConfigurationError, load_config
 from multimodal_tugdt.io.manifest import validate_manifest
 from multimodal_tugdt.logging_utils import configure_logging
+from multimodal_tugdt.pipeline import extract_project_features, preprocess_project
 from multimodal_tugdt.synthetic import generate_synthetic_dataset
 
 LOGGER = logging.getLogger("multimodal_tugdt")
@@ -44,6 +45,24 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Validate schema without checking referenced files on disk.",
     )
+
+    preprocess = subparsers.add_parser(
+        "preprocess",
+        help="Validate, filter, resample, and quality-check configured IMU trials.",
+    )
+    preprocess.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
+
+    features = subparsers.add_parser(
+        "extract-features",
+        help="Extract trial- and phase-level interpretable IMU features.",
+    )
+    features.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
+
+    run_all = subparsers.add_parser(
+        "run-all",
+        help="Run all currently implemented stages: validation, IMU preprocessing, and features.",
+    )
+    run_all.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
     return parser
 
 
@@ -76,6 +95,59 @@ def _validate_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _validated_records(config_path: Path):
+    config = load_config(config_path)
+    report = validate_manifest(config)
+    for warning in report.warnings:
+        LOGGER.warning(warning)
+    for error in report.errors:
+        LOGGER.error(error)
+    if not report.is_valid:
+        raise ValueError(f"Manifest validation failed with {len(report.errors)} error(s).")
+    return config, report.records
+
+
+def _preprocess_command(args: argparse.Namespace) -> int:
+    config, records = _validated_records(args.config)
+    result = preprocess_project(config, records)
+    LOGGER.info(
+        "IMU preprocessing complete: %d succeeded, %d failed, %d skipped. QC: %s",
+        result.succeeded,
+        result.failed,
+        result.skipped,
+        result.output_path,
+    )
+    return 1 if result.failed else 0
+
+
+def _features_command(args: argparse.Namespace) -> int:
+    config, records = _validated_records(args.config)
+    result = extract_project_features(config, records)
+    LOGGER.info(
+        "IMU feature extraction complete: %d succeeded, %d failed, %d skipped. Output: %s",
+        result.succeeded,
+        result.failed,
+        result.skipped,
+        result.output_path,
+    )
+    return 1 if result.failed else 0
+
+
+def _run_all_command(args: argparse.Namespace) -> int:
+    config, records = _validated_records(args.config)
+    preprocessing = preprocess_project(config, records)
+    if preprocessing.failed:
+        LOGGER.error("Feature extraction was not run because IMU preprocessing failed.")
+        return 1
+    features = extract_project_features(config, records)
+    LOGGER.info(
+        "Milestone 2 pipeline complete. QC: %s; features: %s",
+        preprocessing.output_path,
+        features.output_path,
+    )
+    return 1 if features.failed else 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process status code."""
     parser = build_parser()
@@ -86,6 +158,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _generate_command(args)
         if args.command == "validate-manifest":
             return _validate_command(args)
+        if args.command == "preprocess":
+            return _preprocess_command(args)
+        if args.command == "extract-features":
+            return _features_command(args)
+        if args.command == "run-all":
+            return _run_all_command(args)
     except (ConfigurationError, OSError, ValueError) as exc:
         LOGGER.error("%s", exc)
         return 2

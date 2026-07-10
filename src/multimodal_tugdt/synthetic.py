@@ -34,7 +34,7 @@ class SyntheticDataset:
 def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -52,12 +52,13 @@ def _write_imu(path: Path, condition: str, sampling_rate: int, seed: int) -> Non
         noise = rng.gauss(0.0, 0.015)
         mediolateral = 0.12 * math.cos(2 * math.pi * 1.8 * time) * int(walking) + noise
         yaw_velocity = 1.4 * math.sin(math.pi * (time - 8) / 2) if turning else noise
+        vertical_dynamic = 0.55 * max(gait, 0.0)
         rows.append(
             {
                 "timestamp": f"{time:.3f}",
                 "pelvis_acc_ap": f"{0.35 * gait + noise:.6f}",
                 "pelvis_acc_ml": f"{mediolateral:.6f}",
-                "pelvis_acc_vertical": f"{9.81 + 0.55 * abs(gait) + noise:.6f}",
+                "pelvis_acc_vertical": f"{9.81 + vertical_dynamic + noise:.6f}",
                 "pelvis_gyro_yaw": f"{yaw_velocity:.6f}",
                 "quat_w": "1.0",
                 "quat_x": "0.0",

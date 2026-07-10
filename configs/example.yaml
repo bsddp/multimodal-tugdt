@@ -16,6 +16,32 @@ modalities:
   footswitch: true
   clinical: true
 
+imu:
+  format: wide_csv
+  target_sensor: pelvis
+  columns:
+    timestamp: timestamp
+    acc_ap: pelvis_acc_ap
+    acc_ml: pelvis_acc_ml
+    acc_vertical: pelvis_acc_vertical
+    gyro_yaw: pelvis_gyro_yaw
+    quat_w: quat_w
+    quat_x: quat_x
+    quat_y: quat_y
+    quat_z: quat_z
+  target_sampling_rate_hz: 100
+  lowpass_cutoff_hz: 6
+  filter_order: 4
+  input_acceleration_unit: m/s^2
+  input_angular_velocity_unit: rad/s
+  gravity_removal: constant
+  gravity_value_m_s2: 9.80665
+  maximum_abs_acceleration_m_s2: 50
+  maximum_abs_angular_velocity_rad_s: 20
+  step_min_interval_s: 0.35
+  step_prominence: 0.15
+  generate_plots: true
+
 study:
   allowed_conditions:
     - single_task
@@ -28,4 +54,3 @@ synthetic:
   duration_seconds: 20.0
   imu_sampling_rate_hz: 100
   audio_sampling_rate_hz: 16000
-
