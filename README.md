@@ -5,10 +5,11 @@ multimodal data collected during single-task and dual-task Timed Up and Go (TUG)
 The planned modalities are IMU/Xsens-derived motion, video, audio, footswitch signals, manual
 phase annotations, and clinical or demographic metadata.
 
-> Status: Milestones 1 and 2 are implemented. The repository provides the project and manifest
+> Status: Milestones 1–3 are implemented. The repository provides the project and manifest
 > contracts, privacy-safe synthetic data, configurable IMU CSV adapters, signal quality control,
 > filtering, resampling, manual TUG phase segmentation, interpretable IMU features, plots, and
-> automated tests. Cross-modal synchronization and modeling remain future work.
+> explicit manual-offset synchronization with auditable metadata. Automatic alignment and
+> modeling remain future work.
 
 ## Why this project exists
 
@@ -22,7 +23,7 @@ The long-term research goal is to support clinically interpretable investigation
 cognitive-motor interference. This software is a research tool. It does not diagnose disease
 and currently makes no clinical claims.
 
-## Supported through Milestone 2
+## Supported through Milestone 3
 
 - YAML configuration with paths resolved from an explicit project root
 - CSV participant/trial manifest with optional missing modalities
@@ -38,6 +39,12 @@ and currently makes no clinical claims.
 - Trial-level and phase-level step, acceleration, jerk, and turning features
 - Per-trial QC JSON, project-level QC CSV, processed IMU CSV, and annotated overview plots
 - `preprocess`, `extract-features`, and current-stage `run-all` commands
+- IMU-reference clock alignment with explicit positive, zero, or negative offsets
+- Native and reference timeline extents, uncertainty, operator, notes, overlap, and duration QC
+- Synchronized footswitch CSV, validated reference-clock segments, per-trial synchronization
+  metadata, project QC table, and timeline coverage plots
+- WAV duration metadata and optional `ffprobe` support for other audio/video containers
+- A strict error when an available target modality lacks an offset declaration
 - Automated unit and integration tests
 
 Video is represented in the manifest contract but intentionally absent from the synthetic
@@ -80,6 +87,7 @@ The same stages can be run separately:
 
 ```bash
 tugdt preprocess --config configs/example.yaml
+tugdt synchronize --config configs/example.yaml
 tugdt extract-features --config configs/example.yaml
 ```
 
@@ -88,9 +96,14 @@ Generated private/derived outputs are ignored by Git and written under:
 ```text
 data/processed/<participant>/<session>/<trial>/imu.csv
 data/processed/<participant>/<session>/<trial>/imu_qc.json
+data/processed/<participant>/<session>/<trial>/sync_metadata.json
+data/processed/<participant>/<session>/<trial>/segments.csv
+data/processed/<participant>/<session>/<trial>/footswitch_synced.csv
 outputs/qc/imu_preprocessing.csv
+outputs/qc/synchronization.csv
 outputs/features/imu_features.csv
 outputs/plots/*_imu.png
+outputs/plots/*_synchronization.png
 ```
 
 Run the test suite and code checks:
@@ -113,7 +126,8 @@ multimodal-tugdt/
 ├── docs/
 │   ├── data_schema.md
 │   ├── feature_dictionary.md
-│   └── imu_pipeline.md
+│   ├── imu_pipeline.md
+│   └── synchronization.md
 ├── src/multimodal_tugdt/
 │   ├── cli.py
 │   ├── config.py
@@ -123,6 +137,7 @@ multimodal-tugdt/
 │   ├── io/
 │   ├── preprocessing/
 │   ├── segmentation/
+│   ├── synchronization/
 │   ├── features/
 │   └── visualization/
 ├── tests/
@@ -150,8 +165,10 @@ flowchart LR
     A["Configured IMU CSV"] --> B["Canonical column adapter"]
     B --> C["Timestamp and signal QC"]
     C --> D["SI units, filtering, resampling"]
-    D --> E["Manual TUG phase slicing"]
-    E --> F["Trial and phase features"]
+    D --> E["Explicit multimodal clock alignment"]
+    E --> H["Synchronization metadata and QC"]
+    D --> I["Manual TUG phase slicing"]
+    I --> F["Trial and phase features"]
     D --> G["QC metadata and overview plot"]
 ```
 
@@ -162,7 +179,8 @@ Wide-format files store one signal per column. Long-format files first select th
 silently making assumptions about an Xsens schema.
 
 See [IMU pipeline details](docs/imu_pipeline.md) and the
-[feature dictionary](docs/feature_dictionary.md).
+[feature dictionary](docs/feature_dictionary.md). The clock mapping and QC contract are defined
+in [synchronization details](docs/synchronization.md).
 
 ## Synthetic demonstration
 
@@ -187,8 +205,8 @@ public release. Public examples must be synthetic or appropriately de-identified
    CLI, logging, and tests.
 2. **Milestone 2 — IMU (complete):** configurable CSV adapters, timestamp QC, filtering,
    resampling, segmentation, interpretable features, and plots.
-3. **Milestone 3 — synchronization:** explicit offsets, reference timelines, metadata, and
-   alignment QC.
+3. **Milestone 3 — synchronization (complete):** explicit offsets, reference timelines,
+   metadata, aligned footswitch timestamps, coverage plots, and alignment QC.
 4. **Milestone 4 — audio and footswitch:** voice-activity and gait-event features.
 5. **Milestone 5 — video interface:** metadata and optional pose extraction.
 6. **Milestone 6 — fusion and baselines:** modality-prefixed features and participant-grouped
@@ -209,8 +227,14 @@ are outside the current scope.
   known sign. Set `gravity_removal: none` for linear-acceleration inputs.
 - Quaternion resampling uses component-wise interpolation followed by normalization; direct
   spherical interpolation is not yet implemented.
-- Manual annotation timestamps are assumed to use the IMU trial clock until explicit
-  cross-modal synchronization is implemented in Milestone 3.
+- Milestone 3 applies declared manual offsets; it does not yet estimate offsets from triggers,
+  events, cross-correlation, or signal content.
+- Manual annotation timestamps must already use the IMU reference clock. They are validated and
+  copied to processed outputs without an inferred shift.
+- Example zero offsets are explicit synthetic-demo declarations and are not defaults for real
+  recordings.
+- Non-WAV audio and video duration inspection requires `ffprobe` until dedicated modality
+  loaders are implemented.
 
 ## License
 

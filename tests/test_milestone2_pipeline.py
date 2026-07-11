@@ -41,6 +41,14 @@ imu:
   filter_order: 4
   gravity_removal: constant
   generate_plots: true
+synchronization:
+  offsets_seconds:
+    audio: 0.0
+    footswitch: 0.0
+  uncertainty_seconds:
+    audio: 0.0
+    footswitch: 0.0
+  generate_plots: false
 """,
         encoding="utf-8",
     )
@@ -57,4 +65,3 @@ imu:
     assert len(features) == 16
     assert set(features["feature_level"]) == {"trial", "phase"}
     assert len(list((tmp_path / "outputs/plots").glob("*.png"))) == 2
-

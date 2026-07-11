@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,22 @@ class IMUConfig:
 
 
 @dataclass(frozen=True)
+class SynchronizationConfig:
+    """Explicit alignment settings for mapping target clocks to a reference clock."""
+
+    reference_modality: str
+    method: str
+    offsets_seconds: dict[str, float]
+    uncertainty_seconds: dict[str, float]
+    timestamp_columns: dict[str, str]
+    operator: str
+    notes: str
+    maximum_duration_difference_s: float
+    minimum_overlap_ratio: float
+    generate_plots: bool
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     """Validated configuration plus reproducible path-resolution rules."""
 
@@ -59,6 +76,7 @@ class ProjectConfig:
     output_dir: Path
     allowed_conditions: tuple[str, ...]
     imu: IMUConfig
+    synchronization: SynchronizationConfig
     values: dict[str, Any]
 
     def resolve_path(self, value: str | Path) -> Path:
@@ -83,6 +101,15 @@ def _positive_int(value: Any, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ConfigurationError(f"'{field}' must be a positive integer.")
     return value
+
+
+def _nonnegative_float(value: Any, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float) or value < 0:
+        raise ConfigurationError(f"'{field}' must be a nonnegative number.")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ConfigurationError(f"'{field}' must be finite.")
+    return number
 
 
 def _load_imu_config(root: dict[str, Any]) -> IMUConfig:
@@ -156,6 +183,88 @@ def _load_imu_config(root: dict[str, Any]) -> IMUConfig:
     )
 
 
+def _numeric_mapping(value: Any, field: str, *, nonnegative: bool) -> dict[str, float]:
+    mapping = _mapping(value, field)
+    result: dict[str, float] = {}
+    for key, raw_value in mapping.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ConfigurationError(f"'{field}' keys must be non-empty strings.")
+        if isinstance(raw_value, bool) or not isinstance(raw_value, int | float):
+            raise ConfigurationError(f"'{field}.{key}' must be numeric.")
+        number = float(raw_value)
+        if not math.isfinite(number) or (nonnegative and number < 0):
+            qualifier = "finite and nonnegative" if nonnegative else "finite"
+            raise ConfigurationError(f"'{field}.{key}' must be {qualifier}.")
+        result[key] = number
+    return result
+
+
+def _load_synchronization_config(root: dict[str, Any]) -> SynchronizationConfig:
+    values = _mapping(root.get("synchronization", {}), "synchronization")
+    reference = values.get("reference_modality", "imu")
+    if reference != "imu":
+        raise ConfigurationError(
+            "Milestone 3 currently requires 'synchronization.reference_modality: imu'."
+        )
+    method = values.get("method", "manual_offset")
+    if method != "manual_offset":
+        raise ConfigurationError(
+            "Milestone 3 currently supports only 'synchronization.method: manual_offset'."
+        )
+    timestamp_columns = _mapping(
+        values.get("timestamp_columns", {"footswitch": "timestamp"}),
+        "synchronization.timestamp_columns",
+    )
+    if not all(
+        isinstance(key, str) and isinstance(column, str) and column.strip()
+        for key, column in timestamp_columns.items()
+    ):
+        raise ConfigurationError(
+            "'synchronization.timestamp_columns' keys and values must be non-empty strings."
+        )
+    operator = values.get("operator", "not_specified")
+    notes = values.get("notes", "")
+    if not isinstance(operator, str) or not operator.strip():
+        raise ConfigurationError("'synchronization.operator' must be a non-empty string.")
+    if not isinstance(notes, str):
+        raise ConfigurationError("'synchronization.notes' must be a string.")
+    minimum_overlap = values.get("minimum_overlap_ratio", 0.9)
+    if (
+        isinstance(minimum_overlap, bool)
+        or not isinstance(minimum_overlap, int | float)
+        or not 0 <= minimum_overlap <= 1
+    ):
+        raise ConfigurationError(
+            "'synchronization.minimum_overlap_ratio' must be between 0 and 1."
+        )
+    generate_plots = values.get("generate_plots", True)
+    if not isinstance(generate_plots, bool):
+        raise ConfigurationError("'synchronization.generate_plots' must be true or false.")
+    return SynchronizationConfig(
+        reference_modality=reference,
+        method=method,
+        offsets_seconds=_numeric_mapping(
+            values.get("offsets_seconds", {}),
+            "synchronization.offsets_seconds",
+            nonnegative=False,
+        ),
+        uncertainty_seconds=_numeric_mapping(
+            values.get("uncertainty_seconds", {}),
+            "synchronization.uncertainty_seconds",
+            nonnegative=True,
+        ),
+        timestamp_columns=dict(timestamp_columns),
+        operator=operator,
+        notes=notes,
+        maximum_duration_difference_s=_nonnegative_float(
+            values.get("maximum_duration_difference_s", 0.5),
+            "synchronization.maximum_duration_difference_s",
+        ),
+        minimum_overlap_ratio=float(minimum_overlap),
+        generate_plots=generate_plots,
+    )
+
+
 def load_config(path: str | Path) -> ProjectConfig:
     """Load and validate project, path, study, and IMU settings."""
     source = Path(path).expanduser().resolve()
@@ -206,5 +315,6 @@ def load_config(path: str | Path) -> ProjectConfig:
         output_dir=project_path("output_dir", "outputs"),
         allowed_conditions=tuple(allowed),
         imu=_load_imu_config(root),
+        synchronization=_load_synchronization_config(root),
         values=root,
     )

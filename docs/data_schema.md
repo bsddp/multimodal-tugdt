@@ -1,4 +1,4 @@
-# Milestone 1 data schema
+# Data schema
 
 ## Manifest
 
@@ -43,4 +43,17 @@ The demonstration generator creates:
 - a manifest joining these files.
 
 These fixtures test software behavior only. Their values are not physiologically calibrated.
+
+## Synchronized trial outputs
+
+Milestone 3 writes the following derived files under each processed trial directory:
+
+- `imu.csv`: IMU-reference time series from Milestone 2;
+- `imu_qc.json`: IMU input and preprocessing evidence;
+- `sync_metadata.json`: reference timeline, explicit target alignments, QC thresholds, and errors;
+- `segments.csv`: validated annotations already expressed on the IMU reference clock;
+- `footswitch_synced.csv`: native footswitch timestamps plus mapped reference timestamps.
+
+Every synchronized time-series CSV repeats participant, session, trial, and condition identifiers.
+Derived outputs remain ignored by Git because real-study versions may contain sensitive data.
 

@@ -42,6 +42,25 @@ imu:
   step_prominence: 0.15
   generate_plots: true
 
+synchronization:
+  reference_modality: imu
+  method: manual_offset
+  offsets_seconds:
+    video: 0.0
+    audio: 0.0
+    footswitch: 0.0
+  uncertainty_seconds:
+    video: 0.0
+    audio: 0.0
+    footswitch: 0.0
+  timestamp_columns:
+    footswitch: timestamp
+  operator: synthetic_demo
+  notes: Explicit zero offsets are recorded for generated demonstration data.
+  maximum_duration_difference_s: 0.5
+  minimum_overlap_ratio: 0.9
+  generate_plots: true
+
 study:
   allowed_conditions:
     - single_task

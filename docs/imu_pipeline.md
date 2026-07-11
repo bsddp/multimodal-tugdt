@@ -67,8 +67,8 @@ External annotations are the authority. Intervals must have numeric `start_time 
 inside the processed trial, and contain samples. Slicing uses `[start_time, end_time)` so adjacent
 phases do not double-count their shared boundary.
 
-Until Milestone 3, annotation times must already use the IMU reference clock. The pipeline does
-not assume that video or audio starts at the same zero point.
+Annotation times must already use the IMU reference clock. Milestone 3 validates and copies them
+without shifting, while audio, video, and footswitch clocks require explicit offsets.
 
 ## Reproducibility commands
 
@@ -82,4 +82,3 @@ Or run the implemented stages together:
 ```bash
 tugdt run-all --config configs/example.yaml
 ```
-
