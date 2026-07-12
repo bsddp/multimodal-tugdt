@@ -22,16 +22,6 @@ The long-term research goal is to support clinically interpretable investigation
 cognitive-motor interference. This software is a research tool. It does not diagnose disease
 and currently makes no clinical claims.
 
-## Supported in Milestone 1
-
-- YAML configuration with paths resolved from an explicit project root
-- CSV participant/trial manifest with optional missing modalities
-- Validation of schema, identifiers, conditions, duplicate trials, and referenced files
-- Deterministic 20-second synthetic IMU, audio, footswitch, annotation, and clinical fixtures
-- Installable `tugdt` command-line interface
-- Structured validation reports and visible warnings for missing optional modalities
-- Automated unit and integration tests
-
 Video is represented in the manifest contract but intentionally absent from the synthetic
 demo. That absence exercises the missing-modality behavior without creating a fake clinical
 video.
