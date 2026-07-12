@@ -124,7 +124,7 @@ public release. Public examples must be synthetic or appropriately de-identified
 
 ## Roadmap
 
-1. **Milestone 1 — foundation (complete):** package, configuration, manifest, synthetic data,
+1. **Milestone 1 — foundation:** package, configuration, manifest, synthetic data,
    CLI, logging, and tests.
 2. **Milestone 2 — IMU:** configurable CSV adapters, timestamp QC, filtering, resampling,
    segmentation, interpretable features, and plots.
