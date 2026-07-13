@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "multimodal-tugdt"
-version = "0.4.0"
+version = "0.5.0"
 description = "A reproducible pipeline for multimodal single-task and dual-task Timed Up and Go research."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -32,6 +32,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+video = [
+  "mediapipe>=0.10.35",
+]
 dev = [
   "pytest>=8.0",
   "ruff>=0.6",

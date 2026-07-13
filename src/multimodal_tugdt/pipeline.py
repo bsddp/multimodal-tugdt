@@ -15,9 +15,15 @@ from multimodal_tugdt.features.footswitch_features import (
     extract_trial_and_phase_footswitch_features,
 )
 from multimodal_tugdt.features.imu_features import extract_trial_and_phase_features
+from multimodal_tugdt.features.video_features import VIDEO_FEATURE_COLUMNS, extract_video_features
 from multimodal_tugdt.io.audio_loader import load_audio
 from multimodal_tugdt.io.imu_loader import create_imu_loader
 from multimodal_tugdt.io.manifest import TrialRecord
+from multimodal_tugdt.io.video_loader import (
+    PoseExtractionResult,
+    extract_mediapipe_pose,
+    inspect_video,
+)
 from multimodal_tugdt.preprocessing.audio import run_energy_vad
 from multimodal_tugdt.preprocessing.footswitch import process_footswitch
 from multimodal_tugdt.preprocessing.imu import preprocess_imu
@@ -175,8 +181,7 @@ def _target_timeline(
         timestamp_column = config.synchronization.timestamp_columns.get(modality)
         if not timestamp_column:
             raise SynchronizationError(
-                "Available footswitch data requires "
-                "synchronization.timestamp_columns.footswitch."
+                "Available footswitch data requires synchronization.timestamp_columns.footswitch."
             )
         return read_csv_timeline(path, modality, timestamp_column)
     return read_media_timeline(path, modality), None
@@ -251,9 +256,7 @@ def synchronize_project(config: ProjectConfig, records: list[TrialRecord]) -> Wo
             "condition": record.condition,
         }
         available = [
-            modality
-            for modality in target_modalities
-            if record.paths.get(f"{modality}_path", "")
+            modality for modality in target_modalities if record.paths.get(f"{modality}_path", "")
         ]
         if not available:
             skipped += 1
@@ -511,6 +514,146 @@ def process_footswitch_project(
     qc_path = config.output_dir / "qc" / "footswitch_processing.csv"
     qc_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(qc_rows).to_csv(qc_path, index=False)
+    return WorkflowResult(succeeded, failed, skipped, feature_path)
+
+
+def process_video_project(config: ProjectConfig, records: list[TrialRecord]) -> WorkflowResult:
+    """Inspect video files and optionally extract aligned MediaPipe pose landmarks."""
+    feature_rows: list[dict[str, object]] = []
+    qc_rows: list[dict[str, object]] = []
+    succeeded = failed = skipped = 0
+    for record in records:
+        video_value = record.paths.get("video_path", "")
+        identity = {
+            "participant_id": record.participant_id,
+            "session_id": record.session_id,
+            "trial_id": record.trial_id,
+            "condition": record.condition,
+        }
+        if not video_value:
+            skipped += 1
+            continue
+        try:
+            source = config.resolve_path(video_value)
+            offset = _synchronization_offset(config, record, "video")
+            metadata = inspect_video(source)
+            pose: PoseExtractionResult | None = None
+            pose_status = "not_requested"
+            if config.video.enable_pose_estimation:
+                assert config.video.pose_model_path is not None
+                raw_pose = extract_mediapipe_pose(
+                    source,
+                    config.resolve_path(config.video.pose_model_path),
+                    config.video,
+                )
+                landmarks = raw_pose.landmarks.copy()
+                landmarks["timestamp"] = landmarks["native_timestamp"] + offset
+                frames = raw_pose.frames.copy()
+                frames["timestamp"] = frames["native_timestamp"] + offset
+                pose = PoseExtractionResult(
+                    landmarks=landmarks,
+                    frames=frames,
+                    processed_frame_count=raw_pose.processed_frame_count,
+                    detected_frame_count=raw_pose.detected_frame_count,
+                    backend=raw_pose.backend,
+                )
+                pose_status = "complete"
+
+            trial_dir = _trial_directory(config, record)
+            trial_dir.mkdir(parents=True, exist_ok=True)
+            if pose is not None:
+                pose.landmarks.to_csv(trial_dir / "video_pose_landmarks.csv", index=False)
+                pose.frames.to_csv(trial_dir / "video_pose_frames.csv", index=False)
+            video_metadata = {
+                **metadata.to_dict(),
+                "source_path": str(source),
+                "reference_modality": "imu",
+                "offset_seconds": offset,
+                "pose_status": pose_status,
+                "pose_backend": pose.backend if pose is not None else config.video.pose_backend,
+                "pose_model_path": (
+                    str(config.resolve_path(config.video.pose_model_path))
+                    if config.video.pose_model_path is not None
+                    else None
+                ),
+                "frame_step": config.video.frame_step,
+                "processed_frame_count": pose.processed_frame_count if pose is not None else 0,
+                "detected_frame_count": pose.detected_frame_count if pose is not None else 0,
+                "pose_detection_rate": pose.detection_rate if pose is not None else None,
+            }
+            (trial_dir / "video_metadata.json").write_text(
+                json.dumps(video_metadata, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+            imu_frame = _load_processed_trial(config, record)
+            segments = _segments_for_record(config, record, imu_frame)
+            feature_rows.extend(
+                extract_video_features(
+                    record,
+                    metadata,
+                    pose,
+                    segments,
+                    config.video,
+                    trial_start=float(imu_frame["timestamp"].iloc[0]),
+                    trial_end=float(imu_frame["timestamp"].iloc[-1]),
+                )
+            )
+            mean_visibility = None
+            if pose is not None and not pose.landmarks.empty:
+                mean_visibility = float(pose.landmarks["visibility"].mean())
+            qc_rows.append(
+                {
+                    **identity,
+                    "qc_status": "pass",
+                    "duration_seconds": metadata.duration_seconds,
+                    "frame_rate_hz": metadata.frame_rate_hz,
+                    "total_frames": metadata.total_frames,
+                    "frame_count_is_estimated": metadata.frame_count_is_estimated,
+                    "width_pixels": metadata.width_pixels,
+                    "height_pixels": metadata.height_pixels,
+                    "pose_status": pose_status,
+                    "pose_backend": pose.backend if pose is not None else config.video.pose_backend,
+                    "processed_frame_count": (
+                        pose.processed_frame_count if pose is not None else 0
+                    ),
+                    "detected_frame_count": pose.detected_frame_count if pose is not None else 0,
+                    "pose_detection_rate": pose.detection_rate if pose is not None else None,
+                    "mean_landmark_confidence": mean_visibility,
+                    "qc_notes": (
+                        "Pose estimation disabled; metadata only." if pose is None else ""
+                    ),
+                }
+            )
+            succeeded += 1
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            failed += 1
+            LOGGER.error("Failed to process video for trial %s: %s", record.key, exc)
+            qc_rows.append({**identity, "qc_status": "fail", "qc_notes": str(exc)})
+
+    feature_path = config.output_dir / "features" / "video_features.csv"
+    feature_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(feature_rows, columns=VIDEO_FEATURE_COLUMNS).to_csv(feature_path, index=False)
+    qc_path = config.output_dir / "qc" / "video_processing.csv"
+    qc_path.parent.mkdir(parents=True, exist_ok=True)
+    qc_columns = (
+        *IDENTIFIER_COLUMNS,
+        "qc_status",
+        "duration_seconds",
+        "frame_rate_hz",
+        "total_frames",
+        "frame_count_is_estimated",
+        "width_pixels",
+        "height_pixels",
+        "pose_status",
+        "pose_backend",
+        "processed_frame_count",
+        "detected_frame_count",
+        "pose_detection_rate",
+        "mean_landmark_confidence",
+        "qc_notes",
+    )
+    pd.DataFrame(qc_rows, columns=qc_columns).to_csv(qc_path, index=False)
     return WorkflowResult(succeeded, failed, skipped, feature_path)
 
 

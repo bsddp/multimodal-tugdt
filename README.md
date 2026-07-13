@@ -1,16 +1,16 @@
 # Multimodal TUG-DT Analysis Pipeline
 
-A reproducible research pipeline for organizing, validating, and ultimately analyzing
+A reproducible research pipeline for organizing, validating, synchronizing, and analyzing
 multimodal data collected during single-task and dual-task Timed Up and Go (TUG) assessments.
-The planned modalities are IMU/Xsens-derived motion, video, audio, footswitch signals, manual
+The data contract covers IMU/Xsens-derived motion, video, audio, footswitch signals, manual
 phase annotations, and clinical or demographic metadata.
 
-> Status: Milestones 1–4 are implemented. The repository provides the project and manifest
+> Status: Milestones 1–5 are implemented. The repository provides the project and manifest
 > contracts, privacy-safe synthetic data, configurable IMU CSV adapters, signal quality control,
 > filtering, resampling, manual TUG phase segmentation, interpretable IMU features, plots, and
 > explicit manual-offset synchronization with auditable metadata. Automatic alignment and
-> modeling remain future work. Audio energy VAD and footswitch event analysis are implemented
-> as interpretable baselines rather than clinical claims.
+> modeling remain future work. Audio energy VAD, footswitch event analysis, video inspection,
+> and optional two-dimensional pose proxies are interpretable baselines rather than clinical claims.
 
 ## Why this project exists
 
@@ -24,7 +24,7 @@ The long-term research goal is to support clinically interpretable investigation
 cognitive-motor interference. This software is a research tool. It does not diagnose disease
 and currently makes no clinical claims.
 
-## Supported through Milestone 4
+## Supported through Milestone 5
 
 - YAML configuration with paths resolved from an explicit project root
 - CSV participant/trial manifest with optional missing modalities
@@ -54,11 +54,18 @@ and currently makes no clinical claims.
   swing, step-time, and stance-asymmetry features
 - One-to-one IMU/footswitch event matching with precision, recall, F1, and timing error
 - Blank transcript-dependent response count, correctness, and accuracy fields when no labels exist
+- MP4, MOV, and AVI metadata inspection with duration, frame rate, frame count, dimensions, and codec
+- Optional MediaPipe Tasks pose extraction with an explicit local model path and configurable frame step
+- Long-form normalized landmarks with per-landmark visibility and presence confidence
+- Trial- and phase-level pose detection, trunk lean, pelvis trajectory, ankle-separation, and
+  lower-limb symmetry proxy features
+- Metadata-only video processing when pose estimation is disabled
 - Automated unit and integration tests
 
-Video is represented in the manifest contract but intentionally absent from the synthetic
-demo. That absence exercises the missing-modality behavior without creating a fake clinical
-video.
+Video remains intentionally absent from the committed synthetic demo. That absence exercises
+missing-modality behavior without creating a fake clinical video or normalizing the public release
+of identifiable recordings. The video interface and feature mathematics are covered by generated
+software fixtures in the test suite.
 
 ## Installation
 
@@ -71,6 +78,15 @@ python -m pip install -e '.[dev]'
 ```
 
 For runtime-only installation, use `python -m pip install -e .`.
+
+Video metadata requires `ffprobe` from FFmpeg. Optional pose extraction additionally requires:
+
+```bash
+python -m pip install -e '.[video]'
+```
+
+A compatible MediaPipe Pose Landmarker `.task` model must be downloaded separately and referenced
+in configuration; the repository does not silently download or redistribute model assets.
 
 ## Quick start
 
@@ -99,6 +115,7 @@ tugdt preprocess --config configs/example.yaml
 tugdt synchronize --config configs/example.yaml
 tugdt process-audio --config configs/example.yaml
 tugdt process-footswitch --config configs/example.yaml
+tugdt process-video --config configs/example.yaml
 tugdt extract-features --config configs/example.yaml
 ```
 
@@ -116,13 +133,18 @@ data/processed/<participant>/<session>/<trial>/audio_qc.json
 data/processed/<participant>/<session>/<trial>/footswitch_processed.csv
 data/processed/<participant>/<session>/<trial>/footswitch_events.csv
 data/processed/<participant>/<session>/<trial>/footswitch_qc.json
+data/processed/<participant>/<session>/<trial>/video_metadata.json
+data/processed/<participant>/<session>/<trial>/video_pose_frames.csv
+data/processed/<participant>/<session>/<trial>/video_pose_landmarks.csv
 outputs/qc/imu_preprocessing.csv
 outputs/qc/synchronization.csv
 outputs/qc/audio_processing.csv
 outputs/qc/footswitch_processing.csv
+outputs/qc/video_processing.csv
 outputs/features/imu_features.csv
 outputs/features/audio_features.csv
 outputs/features/footswitch_features.csv
+outputs/features/video_features.csv
 outputs/plots/*_imu.png
 outputs/plots/*_synchronization.png
 ```
@@ -149,7 +171,8 @@ multimodal-tugdt/
 │   ├── audio_footswitch.md
 │   ├── feature_dictionary.md
 │   ├── imu_pipeline.md
-│   └── synchronization.md
+│   ├── synchronization.md
+│   └── video_pipeline.md
 ├── src/multimodal_tugdt/
 │   ├── cli.py
 │   ├── config.py
@@ -189,6 +212,7 @@ flowchart LR
     C --> D["SI units, filtering, resampling"]
     D --> E["Explicit multimodal clock alignment"]
     E --> H["Synchronization metadata and QC"]
+    E --> J["Optional aligned video pose proxies"]
     D --> I["Manual TUG phase slicing"]
     I --> F["Trial and phase features"]
     D --> G["QC metadata and overview plot"]
@@ -206,6 +230,9 @@ in [synchronization details](docs/synchronization.md).
 
 Audio VAD, foot-contact event definitions, and IMU agreement metrics are documented in
 [audio and footswitch processing](docs/audio_footswitch.md).
+
+Video metadata, optional MediaPipe configuration, landmark tables, and the mathematical limits of
+the two-dimensional proxy features are documented in [video processing](docs/video_pipeline.md).
 
 ## Synthetic demonstration
 
@@ -234,7 +261,8 @@ public release. Public examples must be synthetic or appropriately de-identified
    metadata, aligned footswitch timestamps, coverage plots, and alignment QC.
 4. **Milestone 4 — audio and footswitch (complete):** energy VAD, pause/speech features,
    debounced gait events, timing features, and IMU-event agreement.
-5. **Milestone 5 — video interface:** metadata and optional pose extraction.
+5. **Milestone 5 — video interface (complete):** metadata inspection, optional MediaPipe Tasks
+   pose extraction, aligned landmarks, QC, and transparent two-dimensional proxy features.
 6. **Milestone 6 — fusion and baselines:** modality-prefixed features and participant-grouped
    scikit-learn evaluation without leakage.
 7. **Milestone 7 — research presentation:** reports, example outputs, notebooks, limitations,
@@ -260,14 +288,18 @@ are outside the current scope.
   copied to processed outputs without an inferred shift.
 - Example zero offsets are explicit synthetic-demo declarations and are not defaults for real
   recordings.
-- Non-WAV audio and video duration inspection requires `ffprobe` until dedicated modality
-  loaders are implemented.
+- Non-WAV audio decoding requires FFmpeg, and all video metadata inspection requires `ffprobe`.
 - Energy VAD detects high-energy waveform intervals, not linguistic speech content. It does not
   perform speaker separation, transcription, or response scoring.
 - Footswitch `contact` is a threshold crossing after debounce; it should not be called heel strike
   without validation against the acquisition hardware and protocol.
 - IMU/footswitch agreement depends on configurable peak prominence and matching tolerance and must
   be reported with those parameters.
+- Video pose extraction requires an externally obtained compatible MediaPipe model. The pipeline
+  does not validate that a chosen model is appropriate for a population, camera view, or protocol.
+- Video coordinates are monocular normalized image coordinates. Trunk lean, pelvis displacement,
+  ankle separation, and symmetry outputs are explicitly proxies, not calibrated 3D kinematics,
+  joint angles, step length, or clinical scores.
 
 ## License
 

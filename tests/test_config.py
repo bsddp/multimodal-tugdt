@@ -37,3 +37,18 @@ def test_load_config_requires_manifest_path(tmp_path: Path) -> None:
     with pytest.raises(ConfigurationError, match="paths.manifest"):
         load_config(config_path)
 
+
+def test_pose_estimation_requires_explicit_model_path(tmp_path: Path) -> None:
+    config_path = tmp_path / "invalid_video.yaml"
+    config_path.write_text(
+        """
+paths:
+  manifest: participants.csv
+video:
+  enable_pose_estimation: true
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigurationError, match="pose_model_path"):
+        load_config(config_path)

@@ -19,6 +19,8 @@ data/raw/**
 data/interim/**
 data/processed/**
 outputs/private/**
+models/**
+*.task
 
 # Keep empty directory markers and public synthetic examples
 !data/raw/.gitkeep
@@ -30,4 +32,3 @@ outputs/private/**
 outputs/*
 !outputs/.gitkeep
 !outputs/private/
-

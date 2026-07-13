@@ -16,6 +16,7 @@ from multimodal_tugdt.pipeline import (
     preprocess_project,
     process_audio_project,
     process_footswitch_project,
+    process_video_project,
     synchronize_project,
 )
 from multimodal_tugdt.synthetic import generate_synthetic_dataset
@@ -61,8 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     synchronize = subparsers.add_parser(
         "synchronize",
         help=(
-            "Map configured modalities to the IMU reference clock and generate "
-            "synchronization QC."
+            "Map configured modalities to the IMU reference clock and generate synchronization QC."
         ),
     )
     synchronize.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
@@ -79,9 +79,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     footswitch.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
 
+    video = subparsers.add_parser(
+        "process-video",
+        help="Inspect video metadata and optionally extract aligned MediaPipe pose landmarks.",
+    )
+    video.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
+
     features = subparsers.add_parser(
         "extract-features",
-        help="Extract trial- and phase-level IMU, audio, and footswitch features.",
+        help="Extract implemented trial- and phase-level multimodal features.",
     )
     features.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
 
@@ -152,13 +158,19 @@ def _features_command(args: argparse.Namespace) -> int:
     imu_result = extract_project_features(config, records)
     audio_result = process_audio_project(config, records)
     footswitch_result = process_footswitch_project(config, records)
+    video_result = process_video_project(config, records)
     LOGGER.info(
-        "Feature extraction complete. IMU: %s; audio: %s; footswitch: %s",
+        "Feature extraction complete. IMU: %s; audio: %s; footswitch: %s; video: %s",
         imu_result.output_path,
         audio_result.output_path,
         footswitch_result.output_path,
+        video_result.output_path,
     )
-    return 1 if any(item.failed for item in (imu_result, audio_result, footswitch_result)) else 0
+    return (
+        1
+        if any(item.failed for item in (imu_result, audio_result, footswitch_result, video_result))
+        else 0
+    )
 
 
 def _synchronize_command(args: argparse.Namespace) -> int:
@@ -200,6 +212,19 @@ def _footswitch_command(args: argparse.Namespace) -> int:
     return 1 if result.failed else 0
 
 
+def _video_command(args: argparse.Namespace) -> int:
+    config, records = _validated_records(args.config)
+    result = process_video_project(config, records)
+    LOGGER.info(
+        "Video processing complete: %d succeeded, %d failed, %d skipped. Features: %s",
+        result.succeeded,
+        result.failed,
+        result.skipped,
+        result.output_path,
+    )
+    return 1 if result.failed else 0
+
+
 def _run_all_command(args: argparse.Namespace) -> int:
     config, records = _validated_records(args.config)
     preprocessing = preprocess_project(config, records)
@@ -212,17 +237,19 @@ def _run_all_command(args: argparse.Namespace) -> int:
         return 1
     audio = process_audio_project(config, records)
     footswitch = process_footswitch_project(config, records)
+    video = process_video_project(config, records)
     features = extract_project_features(config, records)
     LOGGER.info(
-        "Milestone 4 pipeline complete. IMU QC: %s; synchronization QC: %s; "
-        "IMU features: %s; audio features: %s; footswitch features: %s",
+        "Milestone 5 pipeline complete. IMU QC: %s; synchronization QC: %s; "
+        "IMU features: %s; audio features: %s; footswitch features: %s; video features: %s",
         preprocessing.output_path,
         synchronization.output_path,
         features.output_path,
         audio.output_path,
         footswitch.output_path,
+        video.output_path,
     )
-    return 1 if any(item.failed for item in (audio, footswitch, features)) else 0
+    return 1 if any(item.failed for item in (audio, footswitch, video, features)) else 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -243,6 +270,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _audio_command(args)
         if args.command == "process-footswitch":
             return _footswitch_command(args)
+        if args.command == "process-video":
+            return _video_command(args)
         if args.command == "extract-features":
             return _features_command(args)
         if args.command == "run-all":

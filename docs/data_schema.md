@@ -46,7 +46,7 @@ These fixtures test software behavior only. Their values are not physiologically
 
 ## Synchronized trial outputs
 
-Milestone 3 writes the following derived files under each processed trial directory:
+The implemented pipelines write the following derived files under each processed trial directory:
 
 - `imu.csv`: IMU-reference time series from Milestone 2;
 - `imu_qc.json`: IMU input and preprocessing evidence;
@@ -59,6 +59,12 @@ Milestone 3 writes the following derived files under each processed trial direct
 - `footswitch_processed.csv`: raw and stabilized binary contact channels;
 - `footswitch_events.csv`: side-specific contact/toe-off events on both clocks;
 - `footswitch_qc.json`: sampling, debounce, contact-count, and contact-ratio evidence.
+- `video_metadata.json`: container metadata, declared clock offset, optional pose configuration,
+  sampled/detected frame counts, and detection rate;
+- `video_pose_frames.csv`: one row per sampled frame with native/reference timestamps and a
+  pose-detected flag when optional inference is enabled;
+- `video_pose_landmarks.csv`: long-form normalized image coordinates, z estimate, visibility, and
+  presence confidence for each detected landmark.
 
 Every synchronized time-series CSV repeats participant, session, trial, and condition identifiers.
 Derived outputs remain ignored by Git because real-study versions may contain sensitive data.

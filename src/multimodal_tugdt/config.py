@@ -91,6 +91,20 @@ class FootswitchConfig:
 
 
 @dataclass(frozen=True)
+class VideoConfig:
+    """Settings for video inspection and optional MediaPipe pose extraction."""
+
+    enable_pose_estimation: bool
+    pose_backend: str
+    pose_model_path: str | None
+    frame_step: int
+    minimum_visibility: float
+    minimum_pose_detection_confidence: float
+    minimum_pose_presence_confidence: float
+    minimum_tracking_confidence: float
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     """Validated configuration plus reproducible path-resolution rules."""
 
@@ -105,6 +119,7 @@ class ProjectConfig:
     synchronization: SynchronizationConfig
     audio: AudioConfig
     footswitch: FootswitchConfig
+    video: VideoConfig
     values: dict[str, Any]
 
     def resolve_path(self, value: str | Path) -> Path:
@@ -156,9 +171,7 @@ def _load_imu_config(root: dict[str, Any]) -> IMUConfig:
         raise ConfigurationError("'imu.input_acceleration_unit' must be 'm/s^2' or 'g'.")
     angular_unit = values.get("input_angular_velocity_unit", "rad/s")
     if angular_unit not in {"rad/s", "deg/s"}:
-        raise ConfigurationError(
-            "'imu.input_angular_velocity_unit' must be 'rad/s' or 'deg/s'."
-        )
+        raise ConfigurationError("'imu.input_angular_velocity_unit' must be 'rad/s' or 'deg/s'.")
     gravity_removal = values.get("gravity_removal", "none")
     if gravity_removal not in {"none", "constant"}:
         raise ConfigurationError("'imu.gravity_removal' must be 'none' or 'constant'.")
@@ -262,9 +275,7 @@ def _load_synchronization_config(root: dict[str, Any]) -> SynchronizationConfig:
         or not isinstance(minimum_overlap, int | float)
         or not 0 <= minimum_overlap <= 1
     ):
-        raise ConfigurationError(
-            "'synchronization.minimum_overlap_ratio' must be between 0 and 1."
-        )
+        raise ConfigurationError("'synchronization.minimum_overlap_ratio' must be between 0 and 1.")
     generate_plots = values.get("generate_plots", True)
     if not isinstance(generate_plots, bool):
         raise ConfigurationError("'synchronization.generate_plots' must be true or false.")
@@ -372,6 +383,52 @@ def _load_footswitch_config(root: dict[str, Any]) -> FootswitchConfig:
     )
 
 
+def _probability(value: Any, field: str) -> float:
+    number = _finite_float(value, field)
+    if not 0 <= number <= 1:
+        raise ConfigurationError(f"'{field}' must be between 0 and 1.")
+    return number
+
+
+def _load_video_config(root: dict[str, Any]) -> VideoConfig:
+    values = _mapping(root.get("video", {}), "video")
+    enabled = values.get("enable_pose_estimation", False)
+    if not isinstance(enabled, bool):
+        raise ConfigurationError("'video.enable_pose_estimation' must be true or false.")
+    backend = values.get("pose_backend", "mediapipe")
+    if backend != "mediapipe":
+        raise ConfigurationError("'video.pose_backend' currently supports only 'mediapipe'.")
+    model_path = values.get("pose_model_path")
+    if model_path is not None and (not isinstance(model_path, str) or not model_path.strip()):
+        raise ConfigurationError("'video.pose_model_path' must be a non-empty path or null.")
+    if enabled and model_path is None:
+        raise ConfigurationError(
+            "'video.pose_model_path' is required when pose estimation is enabled."
+        )
+    return VideoConfig(
+        enable_pose_estimation=enabled,
+        pose_backend=backend,
+        pose_model_path=model_path,
+        frame_step=_positive_int(values.get("frame_step", 1), "video.frame_step"),
+        minimum_visibility=_probability(
+            values.get("minimum_visibility", 0.5),
+            "video.minimum_visibility",
+        ),
+        minimum_pose_detection_confidence=_probability(
+            values.get("minimum_pose_detection_confidence", 0.5),
+            "video.minimum_pose_detection_confidence",
+        ),
+        minimum_pose_presence_confidence=_probability(
+            values.get("minimum_pose_presence_confidence", 0.5),
+            "video.minimum_pose_presence_confidence",
+        ),
+        minimum_tracking_confidence=_probability(
+            values.get("minimum_tracking_confidence", 0.5),
+            "video.minimum_tracking_confidence",
+        ),
+    )
+
+
 def load_config(path: str | Path) -> ProjectConfig:
     """Load and validate project, path, study, and IMU settings."""
     source = Path(path).expanduser().resolve()
@@ -425,5 +482,6 @@ def load_config(path: str | Path) -> ProjectConfig:
         synchronization=_load_synchronization_config(root),
         audio=_load_audio_config(root),
         footswitch=_load_footswitch_config(root),
+        video=_load_video_config(root),
         values=root,
     )

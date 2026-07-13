@@ -1,4 +1,6 @@
-# IMU feature dictionary
+# Feature dictionary
+
+## IMU features
 
 All exported IMU features use the `imu__` prefix. Rows are identified by participant, session,
 trial, condition, `feature_level`, and `segment_name`.
@@ -78,3 +80,28 @@ VAD speech means an energy-qualified interval, not verified human speech or a co
 
 Trial timing and agreement aggregate annotated straight-walking phases without treating the gap
 between outbound and return walking as a step interval.
+
+## Video features
+
+| Feature | Unit | Meaning |
+|---|---:|---|
+| `video__duration_s` | s | Full container duration for trial rows; phase duration for phase rows |
+| `video__frame_rate_hz` | Hz | Average video stream frame rate reported by the container |
+| `video__total_frames` | frames | Reported or duration-derived total on trial rows |
+| `video__width_pixels` | px | Video stream width |
+| `video__height_pixels` | px | Video stream height |
+| `video__pose_estimation_enabled` | boolean | Whether optional pose inference ran for this trial |
+| `video__processed_frame_count` | frames | Sampled frames in the row time window |
+| `video__detected_frame_count` | frames | Sampled frames with at least one detected pose |
+| `video__pose_detection_rate` | ratio | Detected divided by sampled frames |
+| `video__mean_landmark_confidence` | ratio | Mean MediaPipe landmark visibility in the row window |
+| `video__trunk_lean_mean_degrees` | degrees | Mean signed 2D shoulder-midpoint to hip-midpoint angle from image vertical |
+| `video__trunk_lean_range_degrees` | degrees | Maximum minus minimum of the signed 2D trunk angle |
+| `video__pelvis_vertical_displacement_proxy` | normalized image units | Range of the left/right hip midpoint y coordinate |
+| `video__sit_to_stand_trunk_flexion_degrees` | degrees | Maximum absolute 2D trunk angle in the annotated sit-to-stand interval |
+| `video__left_right_step_length_proxy` | normalized image units | Mean horizontal left/right ankle separation |
+| `video__lower_limb_symmetry_proxy` | ratio | Absolute left/right hip-to-ankle 2D length difference divided by their mean |
+
+Landmarks below `video.minimum_visibility` do not contribute to a proxy. Missing pose output remains
+blank rather than being replaced with zero. These are camera-dependent two-dimensional descriptors;
+they are not calibrated step length, anatomical joint angles, or laboratory-grade 3D kinematics.

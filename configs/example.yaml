@@ -79,6 +79,16 @@ footswitch:
   minimum_swing_duration_s: 0.08
   event_matching_tolerance_s: 0.15
 
+video:
+  enable_pose_estimation: false
+  pose_backend: mediapipe
+  pose_model_path: null
+  frame_step: 1
+  minimum_visibility: 0.5
+  minimum_pose_detection_confidence: 0.5
+  minimum_pose_presence_confidence: 0.5
+  minimum_tracking_confidence: 0.5
+
 study:
   allowed_conditions:
     - single_task
