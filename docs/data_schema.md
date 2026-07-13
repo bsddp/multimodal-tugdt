@@ -53,7 +53,12 @@ Milestone 3 writes the following derived files under each processed trial direct
 - `sync_metadata.json`: reference timeline, explicit target alignments, QC thresholds, and errors;
 - `segments.csv`: validated annotations already expressed on the IMU reference clock;
 - `footswitch_synced.csv`: native footswitch timestamps plus mapped reference timestamps.
+- `audio_frames.csv`: native/reference frame bounds, RMS, dBFS, and VAD labels;
+- `audio_activity.csv`: merged speech/silence intervals on both clocks;
+- `audio_qc.json`: decoding, resampling, clipping, and VAD evidence;
+- `footswitch_processed.csv`: raw and stabilized binary contact channels;
+- `footswitch_events.csv`: side-specific contact/toe-off events on both clocks;
+- `footswitch_qc.json`: sampling, debounce, contact-count, and contact-ratio evidence.
 
 Every synchronized time-series CSV repeats participant, session, trial, and condition identifiers.
 Derived outputs remain ignored by Git because real-study versions may contain sensitive data.
-

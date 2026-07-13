@@ -44,13 +44,21 @@ def _write_imu(path: Path, condition: str, sampling_rate: int, seed: int) -> Non
     rows: list[dict[str, object]] = []
     samples = 20 * sampling_rate + 1
     condition_scale = 0.84 if condition == "dual_task" else 1.0
+    gait_frequency = 1.8 * condition_scale
     for index in range(samples):
         time = index / sampling_rate
-        walking = 3.0 <= time < 8.0 or 10.0 <= time < 15.0
+        walking_elapsed = _walking_elapsed(time)
+        walking = walking_elapsed is not None
         turning = 8.0 <= time < 10.0
-        gait = math.sin(2 * math.pi * 1.8 * condition_scale * time) if walking else 0.0
+        gait = (
+            math.sin(2 * math.pi * gait_frequency * walking_elapsed) if walking else 0.0
+        )
         noise = rng.gauss(0.0, 0.015)
-        mediolateral = 0.12 * math.cos(2 * math.pi * 1.8 * time) * int(walking) + noise
+        mediolateral = (
+            0.12 * math.cos(2 * math.pi * gait_frequency * walking_elapsed)
+            if walking
+            else 0.0
+        ) + noise
         yaw_velocity = 1.4 * math.sin(math.pi * (time - 8) / 2) if turning else noise
         vertical_dynamic = 0.55 * max(gait, 0.0)
         rows.append(
@@ -69,15 +77,28 @@ def _write_imu(path: Path, condition: str, sampling_rate: int, seed: int) -> Non
     _write_csv(path, list(rows[0]), rows)
 
 
+def _walking_elapsed(time: float) -> float | None:
+    if 3.0 <= time < 8.0:
+        return time - 3.0
+    if 10.0 <= time < 15.0:
+        return time - 10.0
+    return None
+
+
 def _contact_state(time: float, side: str, condition: str) -> int:
-    walking = 3.0 <= time < 8.0 or 10.0 <= time < 15.0
-    if not walking:
+    elapsed = _walking_elapsed(time)
+    if elapsed is None:
         return 0
-    cycle = 1.15 if condition == "dual_task" else 1.0
-    phase = ((time - 3.0) % cycle) / cycle
-    if side == "left":
-        return int(phase < 0.58)
-    return int(0.42 <= phase < 0.98)
+    condition_scale = 0.84 if condition == "dual_task" else 1.0
+    step_interval = 1.0 / (1.8 * condition_scale)
+    stride_interval = 2 * step_interval
+    first_contact = 0.25 * step_interval
+    side_offset = 0.0 if side == "left" else step_interval
+    contact_start = first_contact + side_offset
+    if elapsed < contact_start:
+        return 0
+    contact_duration = 0.60 * stride_interval
+    return int((elapsed - contact_start) % stride_interval < contact_duration)
 
 
 def _write_footswitch(path: Path, condition: str, sampling_rate: int = 100) -> None:

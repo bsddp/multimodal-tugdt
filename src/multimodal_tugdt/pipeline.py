@@ -10,9 +10,16 @@ from pathlib import Path
 import pandas as pd
 
 from multimodal_tugdt.config import ProjectConfig
+from multimodal_tugdt.features.audio_features import extract_trial_and_phase_audio_features
+from multimodal_tugdt.features.footswitch_features import (
+    extract_trial_and_phase_footswitch_features,
+)
 from multimodal_tugdt.features.imu_features import extract_trial_and_phase_features
+from multimodal_tugdt.io.audio_loader import load_audio
 from multimodal_tugdt.io.imu_loader import create_imu_loader
 from multimodal_tugdt.io.manifest import TrialRecord
+from multimodal_tugdt.preprocessing.audio import run_energy_vad
+from multimodal_tugdt.preprocessing.footswitch import process_footswitch
 from multimodal_tugdt.preprocessing.imu import preprocess_imu
 from multimodal_tugdt.segmentation.manual import Segment, load_segments
 from multimodal_tugdt.synchronization.timeline import (
@@ -342,6 +349,169 @@ def synchronize_project(config: ProjectConfig, records: list[TrialRecord]) -> Wo
     output_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(qc_rows).to_csv(output_path, index=False)
     return WorkflowResult(succeeded, failed, skipped, output_path)
+
+
+def _synchronization_offset(
+    config: ProjectConfig,
+    record: TrialRecord,
+    modality: str,
+) -> float:
+    path = _trial_directory(config, record) / "sync_metadata.json"
+    if not path.is_file():
+        raise ValueError(f"Synchronization metadata not found; run 'tugdt synchronize': {path}")
+    metadata = json.loads(path.read_text(encoding="utf-8"))
+    for alignment in metadata.get("alignments", []):
+        if alignment.get("target_modality") == modality:
+            return float(alignment["offset_seconds"])
+    raise ValueError(f"No successful {modality} alignment in synchronization metadata: {path}")
+
+
+def process_audio_project(config: ProjectConfig, records: list[TrialRecord]) -> WorkflowResult:
+    """Run audio loading, VAD, QC, and trial/phase feature extraction."""
+    feature_rows: list[dict[str, object]] = []
+    qc_rows: list[dict[str, object]] = []
+    succeeded = failed = skipped = 0
+    for record in records:
+        audio_value = record.paths.get("audio_path", "")
+        identity = {
+            "participant_id": record.participant_id,
+            "session_id": record.session_id,
+            "trial_id": record.trial_id,
+            "condition": record.condition,
+        }
+        if not audio_value:
+            skipped += 1
+            continue
+        try:
+            offset = _synchronization_offset(config, record, "audio")
+            audio = load_audio(config.resolve_path(audio_value), config.audio)
+            vad = run_energy_vad(audio, config.audio)
+            activity_rows = [
+                {
+                    **identity,
+                    "activity": interval.activity,
+                    "native_start_time": interval.start_seconds,
+                    "native_end_time": interval.end_seconds,
+                    "start_time": interval.start_seconds + offset,
+                    "end_time": interval.end_seconds + offset,
+                    "duration_s": interval.duration_seconds,
+                }
+                for interval in vad.intervals
+            ]
+            activity = pd.DataFrame(activity_rows)
+            trial_dir = _trial_directory(config, record)
+            activity.to_csv(trial_dir / "audio_activity.csv", index=False)
+            audio_frames = vad.frames.copy()
+            audio_frames["start_time"] = audio_frames["native_start_time"] + offset
+            audio_frames["end_time"] = audio_frames["native_end_time"] + offset
+            for index, column in enumerate(IDENTIFIER_COLUMNS):
+                audio_frames.insert(index, column, identity[column])
+            audio_frames.to_csv(trial_dir / "audio_frames.csv", index=False)
+            (trial_dir / "audio_qc.json").write_text(
+                json.dumps(vad.quality.to_dict(), indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+            imu_frame = _load_processed_trial(config, record)
+            segments = _segments_for_record(config, record, imu_frame)
+            feature_rows.extend(
+                extract_trial_and_phase_audio_features(
+                    record,
+                    activity,
+                    segments,
+                    config.audio,
+                    trial_start=float(imu_frame["timestamp"].iloc[0]),
+                    trial_end=float(imu_frame["timestamp"].iloc[-1]),
+                )
+            )
+            quality = vad.quality.to_dict()
+            qc_status = (
+                "warning"
+                if quality["speech_segment_count"] == 0 or quality["clipping_ratio"] > 0.01
+                else "pass"
+            )
+            qc_rows.append({**identity, "qc_status": qc_status, **quality})
+            succeeded += 1
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            failed += 1
+            LOGGER.error("Failed to process audio for trial %s: %s", record.key, exc)
+            qc_rows.append({**identity, "qc_status": "fail", "qc_notes": str(exc)})
+    feature_path = config.output_dir / "features" / "audio_features.csv"
+    feature_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(feature_rows).to_csv(feature_path, index=False)
+    qc_path = config.output_dir / "qc" / "audio_processing.csv"
+    qc_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(qc_rows).to_csv(qc_path, index=False)
+    return WorkflowResult(succeeded, failed, skipped, feature_path)
+
+
+def process_footswitch_project(
+    config: ProjectConfig,
+    records: list[TrialRecord],
+) -> WorkflowResult:
+    """Debounce synchronized contacts and extract timing/agreement features."""
+    feature_rows: list[dict[str, object]] = []
+    qc_rows: list[dict[str, object]] = []
+    succeeded = failed = skipped = 0
+    for record in records:
+        identity = {
+            "participant_id": record.participant_id,
+            "session_id": record.session_id,
+            "trial_id": record.trial_id,
+            "condition": record.condition,
+        }
+        if not record.paths.get("footswitch_path", ""):
+            skipped += 1
+            continue
+        try:
+            trial_dir = _trial_directory(config, record)
+            synced_path = trial_dir / "footswitch_synced.csv"
+            if not synced_path.is_file():
+                raise ValueError(
+                    f"Synchronized footswitch not found; run 'tugdt synchronize': {synced_path}"
+                )
+            result = process_footswitch(pd.read_csv(synced_path), config.footswitch)
+            result.frame.to_csv(trial_dir / "footswitch_processed.csv", index=False)
+            events = result.events.copy()
+            for index, column in enumerate(IDENTIFIER_COLUMNS):
+                events.insert(index, column, identity[column])
+            events.to_csv(trial_dir / "footswitch_events.csv", index=False)
+            (trial_dir / "footswitch_qc.json").write_text(
+                json.dumps(result.quality.to_dict(), indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+            imu_frame = _load_processed_trial(config, record)
+            segments = _segments_for_record(config, record, imu_frame)
+            feature_rows.extend(
+                extract_trial_and_phase_footswitch_features(
+                    record,
+                    result.events,
+                    imu_frame,
+                    segments,
+                    config.imu,
+                    config.footswitch,
+                )
+            )
+            quality = result.quality.to_dict()
+            contact_count = quality["left_contact_count"] + quality["right_contact_count"]
+            qc_rows.append(
+                {
+                    **identity,
+                    "qc_status": "pass" if contact_count > 0 else "warning",
+                    **quality,
+                }
+            )
+            succeeded += 1
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            failed += 1
+            LOGGER.error("Failed to process footswitch for trial %s: %s", record.key, exc)
+            qc_rows.append({**identity, "qc_status": "fail", "qc_notes": str(exc)})
+    feature_path = config.output_dir / "features" / "footswitch_features.csv"
+    feature_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(feature_rows).to_csv(feature_path, index=False)
+    qc_path = config.output_dir / "qc" / "footswitch_processing.csv"
+    qc_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(qc_rows).to_csv(qc_path, index=False)
+    return WorkflowResult(succeeded, failed, skipped, feature_path)
 
 
 def extract_project_features(config: ProjectConfig, records: list[TrialRecord]) -> WorkflowResult:

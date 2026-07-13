@@ -61,6 +61,24 @@ synchronization:
   minimum_overlap_ratio: 0.9
   generate_plots: true
 
+audio:
+  target_sampling_rate_hz: 16000
+  frame_duration_ms: 30
+  energy_threshold_dbfs: -35
+  minimum_speech_duration_s: 0.20
+  minimum_pause_duration_s: 0.20
+  task_start_seconds: 0.0
+  clipping_threshold: 0.999
+
+footswitch:
+  timestamp_column: timestamp
+  left_contact_column: left_contact
+  right_contact_column: right_contact
+  threshold: 0.5
+  minimum_contact_duration_s: 0.08
+  minimum_swing_duration_s: 0.08
+  event_matching_tolerance_s: 0.15
+
 study:
   allowed_conditions:
     - single_task

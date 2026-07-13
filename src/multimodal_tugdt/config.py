@@ -65,6 +65,32 @@ class SynchronizationConfig:
 
 
 @dataclass(frozen=True)
+class AudioConfig:
+    """Settings for waveform normalization and interpretable energy VAD."""
+
+    target_sampling_rate_hz: int
+    frame_duration_ms: int
+    energy_threshold_dbfs: float
+    minimum_speech_duration_s: float
+    minimum_pause_duration_s: float
+    task_start_seconds: float | None
+    clipping_threshold: float
+
+
+@dataclass(frozen=True)
+class FootswitchConfig:
+    """Settings for binary contact stabilization and gait-event comparison."""
+
+    timestamp_column: str
+    left_contact_column: str
+    right_contact_column: str
+    threshold: float
+    minimum_contact_duration_s: float
+    minimum_swing_duration_s: float
+    event_matching_tolerance_s: float
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     """Validated configuration plus reproducible path-resolution rules."""
 
@@ -77,6 +103,8 @@ class ProjectConfig:
     allowed_conditions: tuple[str, ...]
     imu: IMUConfig
     synchronization: SynchronizationConfig
+    audio: AudioConfig
+    footswitch: FootswitchConfig
     values: dict[str, Any]
 
     def resolve_path(self, value: str | Path) -> Path:
@@ -265,6 +293,85 @@ def _load_synchronization_config(root: dict[str, Any]) -> SynchronizationConfig:
     )
 
 
+def _finite_float(value: Any, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ConfigurationError(f"'{field}' must be numeric.")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ConfigurationError(f"'{field}' must be finite.")
+    return number
+
+
+def _load_audio_config(root: dict[str, Any]) -> AudioConfig:
+    values = _mapping(root.get("audio", {}), "audio")
+    threshold_dbfs = _finite_float(
+        values.get("energy_threshold_dbfs", -35),
+        "audio.energy_threshold_dbfs",
+    )
+    if threshold_dbfs > 0:
+        raise ConfigurationError("'audio.energy_threshold_dbfs' must be at most 0 dBFS.")
+    task_start_value = values.get("task_start_seconds")
+    task_start = (
+        None
+        if task_start_value is None
+        else _finite_float(task_start_value, "audio.task_start_seconds")
+    )
+    clipping_threshold = _finite_float(
+        values.get("clipping_threshold", 0.999),
+        "audio.clipping_threshold",
+    )
+    if not 0 < clipping_threshold <= 1:
+        raise ConfigurationError("'audio.clipping_threshold' must be in (0, 1].")
+    return AudioConfig(
+        target_sampling_rate_hz=_positive_int(
+            values.get("target_sampling_rate_hz", 16_000),
+            "audio.target_sampling_rate_hz",
+        ),
+        frame_duration_ms=_positive_int(
+            values.get("frame_duration_ms", 30),
+            "audio.frame_duration_ms",
+        ),
+        energy_threshold_dbfs=threshold_dbfs,
+        minimum_speech_duration_s=_positive_float(
+            values.get("minimum_speech_duration_s", 0.2),
+            "audio.minimum_speech_duration_s",
+        ),
+        minimum_pause_duration_s=_positive_float(
+            values.get("minimum_pause_duration_s", 0.2),
+            "audio.minimum_pause_duration_s",
+        ),
+        task_start_seconds=task_start,
+        clipping_threshold=clipping_threshold,
+    )
+
+
+def _load_footswitch_config(root: dict[str, Any]) -> FootswitchConfig:
+    values = _mapping(root.get("footswitch", {}), "footswitch")
+    column_values = {
+        "timestamp_column": values.get("timestamp_column", "timestamp"),
+        "left_contact_column": values.get("left_contact_column", "left_contact"),
+        "right_contact_column": values.get("right_contact_column", "right_contact"),
+    }
+    if not all(isinstance(value, str) and value.strip() for value in column_values.values()):
+        raise ConfigurationError("Footswitch column names must be non-empty strings.")
+    return FootswitchConfig(
+        **column_values,
+        threshold=_finite_float(values.get("threshold", 0.5), "footswitch.threshold"),
+        minimum_contact_duration_s=_positive_float(
+            values.get("minimum_contact_duration_s", 0.08),
+            "footswitch.minimum_contact_duration_s",
+        ),
+        minimum_swing_duration_s=_positive_float(
+            values.get("minimum_swing_duration_s", 0.08),
+            "footswitch.minimum_swing_duration_s",
+        ),
+        event_matching_tolerance_s=_positive_float(
+            values.get("event_matching_tolerance_s", 0.15),
+            "footswitch.event_matching_tolerance_s",
+        ),
+    )
+
+
 def load_config(path: str | Path) -> ProjectConfig:
     """Load and validate project, path, study, and IMU settings."""
     source = Path(path).expanduser().resolve()
@@ -316,5 +423,7 @@ def load_config(path: str | Path) -> ProjectConfig:
         allowed_conditions=tuple(allowed),
         imu=_load_imu_config(root),
         synchronization=_load_synchronization_config(root),
+        audio=_load_audio_config(root),
+        footswitch=_load_footswitch_config(root),
         values=root,
     )

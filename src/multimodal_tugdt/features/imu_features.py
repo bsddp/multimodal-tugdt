@@ -86,6 +86,12 @@ def _step_events(frame: pd.DataFrame, config: IMUConfig) -> tuple[np.ndarray, np
     return peak_times, np.diff(peak_times)
 
 
+def detect_step_events(frame: pd.DataFrame, config: IMUConfig) -> np.ndarray:
+    """Return IMU-derived step-event times for validation against a reference sensor."""
+    event_times, _ = _step_events(frame, config)
+    return event_times
+
+
 def _step_statistics(
     event_times: Iterable[np.ndarray],
     intervals: Iterable[np.ndarray],

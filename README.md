@@ -5,11 +5,12 @@ multimodal data collected during single-task and dual-task Timed Up and Go (TUG)
 The planned modalities are IMU/Xsens-derived motion, video, audio, footswitch signals, manual
 phase annotations, and clinical or demographic metadata.
 
-> Status: Milestones 1–3 are implemented. The repository provides the project and manifest
+> Status: Milestones 1–4 are implemented. The repository provides the project and manifest
 > contracts, privacy-safe synthetic data, configurable IMU CSV adapters, signal quality control,
 > filtering, resampling, manual TUG phase segmentation, interpretable IMU features, plots, and
 > explicit manual-offset synchronization with auditable metadata. Automatic alignment and
-> modeling remain future work.
+> modeling remain future work. Audio energy VAD and footswitch event analysis are implemented
+> as interpretable baselines rather than clinical claims.
 
 ## Why this project exists
 
@@ -23,7 +24,7 @@ The long-term research goal is to support clinically interpretable investigation
 cognitive-motor interference. This software is a research tool. It does not diagnose disease
 and currently makes no clinical claims.
 
-## Supported through Milestone 3
+## Supported through Milestone 4
 
 - YAML configuration with paths resolved from an explicit project root
 - CSV participant/trial manifest with optional missing modalities
@@ -45,6 +46,14 @@ and currently makes no clinical claims.
   metadata, project QC table, and timeline coverage plots
 - WAV duration metadata and optional `ffprobe` support for other audio/video containers
 - A strict error when an available target modality lacks an offset declaration
+- WAV and optional FFmpeg audio decoding, mono normalization, resampling, clipping QC, and
+  fixed-frame energy VAD
+- Speech duration/ratio, internal pause, and explicitly configured first-response latency
+  features at trial and TUG-phase levels
+- Footswitch thresholding, short-run debounce, left/right contact and toe-off events, stance,
+  swing, step-time, and stance-asymmetry features
+- One-to-one IMU/footswitch event matching with precision, recall, F1, and timing error
+- Blank transcript-dependent response count, correctness, and accuracy fields when no labels exist
 - Automated unit and integration tests
 
 Video is represented in the manifest contract but intentionally absent from the synthetic
@@ -88,6 +97,8 @@ The same stages can be run separately:
 ```bash
 tugdt preprocess --config configs/example.yaml
 tugdt synchronize --config configs/example.yaml
+tugdt process-audio --config configs/example.yaml
+tugdt process-footswitch --config configs/example.yaml
 tugdt extract-features --config configs/example.yaml
 ```
 
@@ -99,9 +110,19 @@ data/processed/<participant>/<session>/<trial>/imu_qc.json
 data/processed/<participant>/<session>/<trial>/sync_metadata.json
 data/processed/<participant>/<session>/<trial>/segments.csv
 data/processed/<participant>/<session>/<trial>/footswitch_synced.csv
+data/processed/<participant>/<session>/<trial>/audio_frames.csv
+data/processed/<participant>/<session>/<trial>/audio_activity.csv
+data/processed/<participant>/<session>/<trial>/audio_qc.json
+data/processed/<participant>/<session>/<trial>/footswitch_processed.csv
+data/processed/<participant>/<session>/<trial>/footswitch_events.csv
+data/processed/<participant>/<session>/<trial>/footswitch_qc.json
 outputs/qc/imu_preprocessing.csv
 outputs/qc/synchronization.csv
+outputs/qc/audio_processing.csv
+outputs/qc/footswitch_processing.csv
 outputs/features/imu_features.csv
+outputs/features/audio_features.csv
+outputs/features/footswitch_features.csv
 outputs/plots/*_imu.png
 outputs/plots/*_synchronization.png
 ```
@@ -125,6 +146,7 @@ multimodal-tugdt/
 │   └── synthetic/                 # public generated demonstration only
 ├── docs/
 │   ├── data_schema.md
+│   ├── audio_footswitch.md
 │   ├── feature_dictionary.md
 │   ├── imu_pipeline.md
 │   └── synchronization.md
@@ -182,6 +204,9 @@ See [IMU pipeline details](docs/imu_pipeline.md) and the
 [feature dictionary](docs/feature_dictionary.md). The clock mapping and QC contract are defined
 in [synchronization details](docs/synchronization.md).
 
+Audio VAD, foot-contact event definitions, and IMU agreement metrics are documented in
+[audio and footswitch processing](docs/audio_footswitch.md).
+
 ## Synthetic demonstration
 
 The generator creates a pair of single-task and dual-task trials for each requested synthetic
@@ -207,7 +232,8 @@ public release. Public examples must be synthetic or appropriately de-identified
    resampling, segmentation, interpretable features, and plots.
 3. **Milestone 3 — synchronization (complete):** explicit offsets, reference timelines,
    metadata, aligned footswitch timestamps, coverage plots, and alignment QC.
-4. **Milestone 4 — audio and footswitch:** voice-activity and gait-event features.
+4. **Milestone 4 — audio and footswitch (complete):** energy VAD, pause/speech features,
+   debounced gait events, timing features, and IMU-event agreement.
 5. **Milestone 5 — video interface:** metadata and optional pose extraction.
 6. **Milestone 6 — fusion and baselines:** modality-prefixed features and participant-grouped
    scikit-learn evaluation without leakage.
@@ -221,8 +247,9 @@ are outside the current scope.
 
 - Step events are estimated from vertical pelvis acceleration with configurable peak detection.
   They require validation against footswitch or another reference before research interpretation.
-- Stance, swing, double-support, stride, and left-right asymmetry are not inferred from a single
-  pelvis signal. Those belong to the footswitch/multi-sensor milestone.
+- Stance, swing, and left-right asymmetry are never inferred from a single pelvis signal; reported
+  values come from the explicitly configured footswitch channels. Double support, stride, and gait
+  speed remain outside the current feature set.
 - Constant gravity subtraction assumes the configured vertical channel includes gravity with a
   known sign. Set `gravity_removal: none` for linear-acceleration inputs.
 - Quaternion resampling uses component-wise interpolation followed by normalization; direct
@@ -235,6 +262,12 @@ are outside the current scope.
   recordings.
 - Non-WAV audio and video duration inspection requires `ffprobe` until dedicated modality
   loaders are implemented.
+- Energy VAD detects high-energy waveform intervals, not linguistic speech content. It does not
+  perform speaker separation, transcription, or response scoring.
+- Footswitch `contact` is a threshold crossing after debounce; it should not be called heel strike
+  without validation against the acquisition hardware and protocol.
+- IMU/footswitch agreement depends on configurable peak prominence and matching tolerance and must
+  be reported with those parameters.
 
 ## License
 

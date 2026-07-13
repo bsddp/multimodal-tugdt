@@ -14,6 +14,8 @@ from multimodal_tugdt.logging_utils import configure_logging
 from multimodal_tugdt.pipeline import (
     extract_project_features,
     preprocess_project,
+    process_audio_project,
+    process_footswitch_project,
     synchronize_project,
 )
 from multimodal_tugdt.synthetic import generate_synthetic_dataset
@@ -65,9 +67,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     synchronize.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
 
+    audio = subparsers.add_parser(
+        "process-audio",
+        help="Run waveform loading, energy VAD, QC, and audio behavior features.",
+    )
+    audio.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
+
+    footswitch = subparsers.add_parser(
+        "process-footswitch",
+        help="Debounce contacts and extract footswitch timing and IMU agreement features.",
+    )
+    footswitch.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
+
     features = subparsers.add_parser(
         "extract-features",
-        help="Extract trial- and phase-level interpretable IMU features.",
+        help="Extract trial- and phase-level IMU, audio, and footswitch features.",
     )
     features.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
 
@@ -135,9 +149,23 @@ def _preprocess_command(args: argparse.Namespace) -> int:
 
 def _features_command(args: argparse.Namespace) -> int:
     config, records = _validated_records(args.config)
-    result = extract_project_features(config, records)
+    imu_result = extract_project_features(config, records)
+    audio_result = process_audio_project(config, records)
+    footswitch_result = process_footswitch_project(config, records)
     LOGGER.info(
-        "IMU feature extraction complete: %d succeeded, %d failed, %d skipped. Output: %s",
+        "Feature extraction complete. IMU: %s; audio: %s; footswitch: %s",
+        imu_result.output_path,
+        audio_result.output_path,
+        footswitch_result.output_path,
+    )
+    return 1 if any(item.failed for item in (imu_result, audio_result, footswitch_result)) else 0
+
+
+def _synchronize_command(args: argparse.Namespace) -> int:
+    config, records = _validated_records(args.config)
+    result = synchronize_project(config, records)
+    LOGGER.info(
+        "Synchronization complete: %d succeeded, %d failed, %d skipped. QC: %s",
         result.succeeded,
         result.failed,
         result.skipped,
@@ -146,11 +174,24 @@ def _features_command(args: argparse.Namespace) -> int:
     return 1 if result.failed else 0
 
 
-def _synchronize_command(args: argparse.Namespace) -> int:
+def _audio_command(args: argparse.Namespace) -> int:
     config, records = _validated_records(args.config)
-    result = synchronize_project(config, records)
+    result = process_audio_project(config, records)
     LOGGER.info(
-        "Synchronization complete: %d succeeded, %d failed, %d skipped. QC: %s",
+        "Audio processing complete: %d succeeded, %d failed, %d skipped. Features: %s",
+        result.succeeded,
+        result.failed,
+        result.skipped,
+        result.output_path,
+    )
+    return 1 if result.failed else 0
+
+
+def _footswitch_command(args: argparse.Namespace) -> int:
+    config, records = _validated_records(args.config)
+    result = process_footswitch_project(config, records)
+    LOGGER.info(
+        "Footswitch processing complete: %d succeeded, %d failed, %d skipped. Features: %s",
         result.succeeded,
         result.failed,
         result.skipped,
@@ -169,14 +210,19 @@ def _run_all_command(args: argparse.Namespace) -> int:
     if synchronization.failed:
         LOGGER.error("Feature extraction was not run because synchronization failed.")
         return 1
+    audio = process_audio_project(config, records)
+    footswitch = process_footswitch_project(config, records)
     features = extract_project_features(config, records)
     LOGGER.info(
-        "Milestone 3 pipeline complete. IMU QC: %s; synchronization QC: %s; features: %s",
+        "Milestone 4 pipeline complete. IMU QC: %s; synchronization QC: %s; "
+        "IMU features: %s; audio features: %s; footswitch features: %s",
         preprocessing.output_path,
         synchronization.output_path,
         features.output_path,
+        audio.output_path,
+        footswitch.output_path,
     )
-    return 1 if features.failed else 0
+    return 1 if any(item.failed for item in (audio, footswitch, features)) else 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -193,6 +239,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _preprocess_command(args)
         if args.command == "synchronize":
             return _synchronize_command(args)
+        if args.command == "process-audio":
+            return _audio_command(args)
+        if args.command == "process-footswitch":
+            return _footswitch_command(args)
         if args.command == "extract-features":
             return _features_command(args)
         if args.command == "run-all":
