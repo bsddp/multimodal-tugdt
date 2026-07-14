@@ -61,4 +61,3 @@ absolute error and greedily assigned one to one. The pipeline reports:
 Trial agreement combines annotated straight-walking phases only. Real-data interpretation requires
 reporting peak prominence, minimum IMU event interval, debounce durations, threshold, and matching
 tolerance.
-

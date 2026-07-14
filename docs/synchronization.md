@@ -86,4 +86,3 @@ nonzero.
 Only declared manual offsets are implemented. Hardware triggers, shared event markers, clap/beep
 events, and cross-correlation are planned alignment strategies, not current claims. Manual TUG
 annotations must already be on the IMU clock and are copied to `segments.csv` without shifting.
-
