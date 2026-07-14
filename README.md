@@ -5,13 +5,11 @@ multimodal data collected during single-task and dual-task Timed Up and Go (TUG)
 The data contract covers IMU/Xsens-derived motion, video, audio, footswitch signals, manual
 phase annotations, and clinical or demographic metadata.
 
-> Status: Milestones 1–7 are implemented. The repository provides the project and manifest
-> contracts, privacy-safe synthetic data, configurable IMU CSV adapters, signal quality control,
-> filtering, resampling, manual TUG phase segmentation, interpretable IMU features, plots, and
-> explicit manual-offset synchronization with auditable metadata. Audio energy VAD, footswitch
-> event analysis, video inspection, optional two-dimensional pose proxies, feature-level fusion,
-> participant-grouped baseline models, aggregate reporting, and the executed demonstration
-> notebook are research tools rather than clinical claims.
+> Status: The integrated pipeline covers data contracts, privacy-safe synthetic fixtures,
+> multimodal quality control, explicit clock synchronization, manual TUG phase segmentation,
+> interpretable feature extraction, missing-modality-aware fusion, participant-grouped baseline
+> modeling, aggregate reporting, and an executed demonstration notebook. All components are
+> research tools rather than clinical claims.
 
 ## Why this project exists
 
@@ -25,7 +23,7 @@ The long-term research goal is to support clinically interpretable investigation
 cognitive-motor interference. This software is a research tool. It does not diagnose disease
 and currently makes no clinical claims.
 
-## Supported through Milestone 7
+## Integrated pipeline capabilities
 
 - YAML configuration with paths resolved from an explicit project root
 - CSV participant/trial manifest with optional missing modalities
@@ -40,7 +38,7 @@ and currently makes no clinical claims.
 - Externally annotated TUG phase validation and half-open interval slicing
 - Trial-level and phase-level step, acceleration, jerk, and turning features
 - Per-trial QC JSON, project-level QC CSV, processed IMU CSV, and annotated overview plots
-- `preprocess`, `extract-features`, and current-stage `run-all` commands
+- `preprocess`, `extract-features`, and end-to-end `run-all` commands
 - IMU-reference clock alignment with explicit positive, zero, or negative offsets
 - Native and reference timeline extents, uncertainty, operator, notes, overlap, and duration QC
 - Synchronized footswitch CSV, validated reference-clock segments, per-trial synchronization
@@ -305,8 +303,8 @@ the [reproducibility checklist](docs/reproducibility.md) when adapting the softw
 ## Synthetic demonstration
 
 The generator creates a pair of single-task and dual-task trials for each requested synthetic
-participant. It includes simple periodic signals and known TUG phase boundaries so future
-milestones have stable software fixtures.
+participant. It includes simple periodic signals and known TUG phase boundaries so the complete
+workflow has stable software fixtures.
 
 Synthetic data are provided solely for demonstrating the software workflow and should not be
 interpreted as clinically valid recordings. The generator creates no names, faces, natural
@@ -319,24 +317,16 @@ default. Do not commit identifiable videos, voices, medical-record identifiers, 
 files, restricted Xsens exports, or any research data that lack explicit authorization for
 public release. Public examples must be synthetic or appropriately de-identified and approved.
 
-## Roadmap
+## Integrated workflow
 
-1. **Milestone 1 — foundation (complete):** package, configuration, manifest, synthetic data,
-   CLI, logging, and tests.
-2. **Milestone 2 — IMU (complete):** configurable CSV adapters, timestamp QC, filtering,
-   resampling, segmentation, interpretable features, and plots.
-3. **Milestone 3 — synchronization (complete):** explicit offsets, reference timelines,
-   metadata, aligned footswitch timestamps, coverage plots, and alignment QC.
-4. **Milestone 4 — audio and footswitch (complete):** energy VAD, pause/speech features,
-   debounced gait events, timing features, and IMU-event agreement.
-5. **Milestone 5 — video interface (complete):** metadata inspection, optional MediaPipe Tasks
-   pose extraction, aligned landmarks, QC, and transparent two-dimensional proxy features.
-6. **Milestone 6 — fusion and baselines (complete):** modality-prefixed feature fusion,
-   availability indicators, fold-local preprocessing, participant-grouped evaluation, single- and
-   multimodal comparisons, and split-audit artifacts.
-7. **Milestone 7 — research presentation (complete):** aggregate report, public example output,
-   executed tutorial notebook, architecture and reproducibility documentation, CI, and citation
-   guidance.
+1. Validate a configuration-driven trial manifest and its declared modality files.
+2. Load, quality-check, and preprocess IMU, audio, footswitch, video, annotation, and clinical data.
+3. Map available signals onto an explicit IMU reference clock and preserve synchronization metadata.
+4. Apply validated TUG phase annotations and extract trial- and phase-level interpretable features.
+5. Build a missing-modality-aware trial matrix with stable modality prefixes and availability flags.
+6. Evaluate configured single- and multimodal baselines with participant-grouped data splits.
+7. Export QC evidence, feature inventories, split audits, predictions, aggregate research reports,
+   plots, and reproducibility artifacts.
 
 Deep learning, diagnostic claims, automatic silent alignment, and row-level random splitting
 are outside the current scope.
@@ -352,8 +342,8 @@ are outside the current scope.
   known sign. Set `gravity_removal: none` for linear-acceleration inputs.
 - Quaternion resampling uses component-wise interpolation followed by normalization; direct
   spherical interpolation is not yet implemented.
-- Milestone 3 applies declared manual offsets; it does not yet estimate offsets from triggers,
-  events, cross-correlation, or signal content.
+- The current synchronization implementation applies declared manual offsets; it does not yet
+  estimate offsets from triggers, events, cross-correlation, or signal content.
 - Manual annotation timestamps must already use the IMU reference clock. They are validated and
   copied to processed outputs without an inferred shift.
 - Example zero offsets are explicit synthetic-demo declarations and are not defaults for real
@@ -372,13 +362,13 @@ are outside the current scope.
   joint angles, step length, or clinical scores.
 - Baseline modeling accepts numeric predictors only. Non-numeric clinical fields remain in the
   fused table for provenance but are not silently encoded.
-- Classification is binary in Milestone 6. ROC AUC is left blank for any test fold containing only
-  one class rather than inventing a value.
+- Classification is binary. ROC AUC is left blank for any test fold containing only one class
+  rather than inventing a value.
 - Grouped cross-validation prevents participant overlap but is not an external validation cohort,
   nested model-selection study, or guarantee of generalization. No hyperparameter search is run.
 - The committed one-participant demo cannot support valid modeling; it demonstrates fusion only.
-- Paired single-/dual-task cost calculation is not automatically added to the fused table in this
-  milestone and must not be inferred from condition labels alone.
+- Paired single-/dual-task cost calculation is not automatically added to the fused table and must
+  not be inferred from condition labels alone.
 - The aggregate report summarizes artifact availability and QC counts. It intentionally omits
   individual measurements and cannot replace a protocol-specific statistical analysis.
 
