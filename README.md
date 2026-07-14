@@ -1,5 +1,10 @@
 # Multimodal TUG-DT Analysis Pipeline
 
+[![CI](https://github.com/bsddp/multimodal-tugdt/actions/workflows/ci.yml/badge.svg)](https://github.com/bsddp/multimodal-tugdt/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/bsddp/multimodal-tugdt)](https://github.com/bsddp/multimodal-tugdt/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-176B87)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2A9D8F)](LICENSE)
+
 A reproducible research pipeline for organizing, validating, synchronizing, and analyzing
 multimodal data collected during single-task and dual-task Timed Up and Go (TUG) assessments.
 The data contract covers IMU/Xsens-derived motion, video, audio, footswitch signals, manual
@@ -10,6 +15,11 @@ phase annotations, and clinical or demographic metadata.
 > interpretable feature extraction, missing-modality-aware fusion, participant-grouped baseline
 > modeling, aggregate reporting, and an executed demonstration notebook. All components are
 > research tools rather than clinical claims.
+
+![Synthetic multimodal TUG-DT pipeline output](docs/assets/readme_pipeline_demo.png)
+
+*Generated from the committed synthetic workflow. The values demonstrate software behavior and
+are not clinical results.*
 
 ## Why this project exists
 
@@ -25,60 +35,52 @@ and currently makes no clinical claims.
 
 ## Integrated pipeline capabilities
 
-- YAML configuration with paths resolved from an explicit project root
-- CSV participant/trial manifest with optional missing modalities
-- Validation of schema, identifiers, conditions, duplicate trials, and referenced files
-- Deterministic 20-second synthetic IMU, audio, footswitch, annotation, and clinical fixtures
-- Installable `tugdt` command-line interface
-- Structured validation reports and visible warnings for missing optional modalities
-- Wide- and long-format IMU CSV adapters with configurable canonical column mapping
-- Timestamp, sampling interval, duplicate, missing-value, and amplitude quality checks
-- SI unit conversion, optional constant-gravity removal, low-pass filtering, resampling, and
-  quaternion normalization
-- Externally annotated TUG phase validation and half-open interval slicing
-- Trial-level and phase-level step, acceleration, jerk, and turning features
-- Per-trial QC JSON, project-level QC CSV, processed IMU CSV, and annotated overview plots
-- `preprocess`, `extract-features`, and end-to-end `run-all` commands
-- IMU-reference clock alignment with explicit positive, zero, or negative offsets
-- Native and reference timeline extents, uncertainty, operator, notes, overlap, and duration QC
-- Synchronized footswitch CSV, validated reference-clock segments, per-trial synchronization
-  metadata, project QC table, and timeline coverage plots
-- WAV duration metadata and optional `ffprobe` support for other audio/video containers
-- A strict error when an available target modality lacks an offset declaration
-- WAV and optional FFmpeg audio decoding, mono normalization, resampling, clipping QC, and
-  fixed-frame energy VAD
-- Speech duration/ratio, internal pause, and explicitly configured first-response latency
-  features at trial and TUG-phase levels
-- Footswitch thresholding, short-run debounce, left/right contact and toe-off events, stance,
-  swing, step-time, and stance-asymmetry features
-- One-to-one IMU/footswitch event matching with precision, recall, F1, and timing error
-- Blank transcript-dependent response count, correctness, and accuracy fields when no labels exist
-- MP4, MOV, and AVI metadata inspection with duration, frame rate, frame count, dimensions, and codec
-- Optional MediaPipe Tasks pose extraction with an explicit local model path and configurable frame step
-- Long-form normalized landmarks with per-landmark visibility and presence confidence
-- Trial- and phase-level pose detection, trunk lean, pelvis trajectory, ankle-separation, and
-  lower-limb symmetry proxy features
-- Metadata-only video processing when pose estimation is disabled
-- Trial-level outer fusion that preserves missing modalities and adds explicit availability flags
-- Machine-readable feature inventory with modality, dtype, observed, and missing counts
-- Configurable single-modality and multimodal feature-set comparisons
-- All-sample and complete-modality cohort evaluations
-- Fold-local median imputation and scaling inside scikit-learn Pipelines
-- Participant-grouped regression with linear, ridge, and random-forest baselines
-- Participant-stratified grouped binary classification with logistic and random-forest baselines
-- Fold metrics, summary comparisons, out-of-fold predictions, skipped evaluations, and a split
-  audit proving zero participant overlap
-- Deterministic aggregate Markdown reporting without participant IDs, raw paths, or individual
-  feature values
-- An executed synthetic-workflow notebook with modality, QC, and interpretation checks
-- A public synthetic report example, reproducibility checklist, and end-to-end architecture diagram
-- Citation metadata and continuous integration across supported Python versions
-- Automated unit and integration tests
+- Explicit manifest validation, quality control, reference-clock synchronization, and TUG phases.
+- IMU, audio, footswitch, optional video pose, annotation, and clinical-data interfaces.
+- Interpretable trial/phase features plus IMU–footswitch event-agreement evidence.
+- Missing-modality-aware fusion and config-gated single-/dual-task cost features.
+- Leakage-aware participant-grouped baselines with split-audit artifacts.
+- Reproducible CLI, synthetic fixtures, notebook, aggregate report, tests, and CI.
+
+See the [complete capability inventory](docs/capabilities.md) and
+[pipeline architecture](docs/pipeline_diagram.md).
 
 Video remains intentionally absent from the committed synthetic demo. That absence exercises
 missing-modality behavior without creating a fake clinical video or normalizing the public release
 of identifiable recordings. The video interface and feature mathematics are covered by generated
 software fixtures in the test suite.
+
+## What you get
+
+Running `tugdt run-all --config configs/example.yaml` creates processed reference-clock time
+series, trial/phase feature tables, QC evidence, synchronization plots, a fused trial matrix,
+optional pair-level dual-task costs, and an aggregate research report.
+
+### Synthetic demonstration snapshot
+
+| QC stage | Passing rows | Failed rows |
+|---|---:|---:|
+| IMU preprocessing | 2/2 | 0 |
+| Synchronization | 4/4 | 0 |
+| Audio processing | 2/2 | 0 |
+| Footswitch processing | 2/2 | 0 |
+
+| Condition | IMU-event precision | Recall | F1 | Mean absolute timing error |
+|---|---:|---:|---:|---:|
+| Single task | 1.000 | 1.000 | 1.000 | 4.4 ms |
+| Dual task | 1.000 | 1.000 | 1.000 | 3.7 ms |
+
+The enabled synthetic dual-task-cost example preserves the source values and reports positive
+cost as deterioration: cadence changes from 108 to 96 steps/min (`+11.1%` cost), while mean
+footswitch step time changes from 0.556 to 0.661 seconds (`+18.9%` cost).
+
+> **Aggregate report excerpt**
+>
+> Participants: **1** · Trials: **2** · Conditions: single task and dual task
+>
+> Modeling: disabled because the public fixture contains only one independent participant group.
+
+These values are deterministic software checks, not performance benchmarks or clinical findings.
 
 ## Installation
 
@@ -168,6 +170,7 @@ outputs/features/footswitch_features.csv
 outputs/features/video_features.csv
 outputs/features/multimodal_features.csv
 outputs/features/feature_inventory.csv
+outputs/features/dual_task_costs.csv
 outputs/modeling/fold_metrics.csv
 outputs/modeling/summary_metrics.csv
 outputs/modeling/predictions.csv
@@ -216,6 +219,8 @@ multimodal-tugdt/
 ├── docs/
 │   ├── data_schema.md
 │   ├── audio_footswitch.md
+│   ├── capabilities.md
+│   ├── dual_task_cost.md
 │   ├── feature_dictionary.md
 │   ├── imu_pipeline.md
 │   ├── modeling.md
@@ -223,11 +228,13 @@ multimodal-tugdt/
 │   ├── reproducibility.md
 │   ├── synchronization.md
 │   ├── video_pipeline.md
+│   ├── assets/
 │   └── example_outputs/
 ├── notebooks/
 │   └── 01_synthetic_workflow.ipynb
 ├── scripts/
-│   └── build_demo_notebook.py
+│   ├── build_demo_notebook.py
+│   └── build_readme_visual.py
 ├── src/multimodal_tugdt/
 │   ├── cli.py
 │   ├── config.py
@@ -244,6 +251,7 @@ multimodal-tugdt/
 │   ├── reporting/
 │   └── visualization/
 ├── tests/
+├── CHANGELOG.md
 ├── CITATION.cff
 ├── README.md
 └── pyproject.toml
@@ -340,8 +348,8 @@ are outside the current scope.
   speed remain outside the current feature set.
 - Constant gravity subtraction assumes the configured vertical channel includes gravity with a
   known sign. Set `gravity_removal: none` for linear-acceleration inputs.
-- Quaternion resampling uses component-wise interpolation followed by normalization; direct
-  spherical interpolation is not yet implemented.
+- Quaternion resampling uses SLERP with sign-continuous, normalized orientations. Missing endpoint
+  orientations are held at the nearest valid value and still require protocol-specific validation.
 - The current synchronization implementation applies declared manual offsets; it does not yet
   estimate offsets from triggers, events, cross-correlation, or signal content.
 - Manual annotation timestamps must already use the IMU reference clock. They are validated and
@@ -367,8 +375,8 @@ are outside the current scope.
 - Grouped cross-validation prevents participant overlap but is not an external validation cohort,
   nested model-selection study, or guarantee of generalization. No hyperparameter search is run.
 - The committed one-participant demo cannot support valid modeling; it demonstrates fusion only.
-- Paired single-/dual-task cost calculation is not automatically added to the fused table and must
-  not be inferred from condition labels alone.
+- Dual-task cost is opt-in and pair-level. It requires one declared single/dual trial per configured
+  group; duplicates raise an error and incomplete pairs are skipped.
 - The aggregate report summarizes artifact availability and QC counts. It intentionally omits
   individual measurements and cannot replace a protocol-specific statistical analysis.
 

@@ -29,6 +29,7 @@ python -m jupyter nbconvert --execute --to notebook --inplace \
 - Synchronization event, offset, uncertainty, operator, and clock convention.
 - Annotation protocol, raters, agreement procedure, and phase definitions.
 - Feature definitions and all non-default thresholds.
+- Dual-task pairing keys, condition labels, metric directions, and incomplete-pair counts.
 - Participant-grouped split audit and any external validation cohort.
 - Missing-modality policy and the number of observations in every comparison.
 - Approval and governance basis for storing or sharing each modality.
@@ -45,3 +46,9 @@ Passing software tests demonstrates implementation behavior, not physiological, 
 clinical validity. Energy VAD is not transcription; footswitch threshold crossings are not assumed
 to be heel strikes; monocular pose measures are two-dimensional proxies; grouped cross-validation
 is not external validation; and the synthetic dataset cannot support a model-performance claim.
+
+Regenerate the README visual only after running the complete synthetic workflow:
+
+```bash
+python scripts/build_readme_visual.py
+```

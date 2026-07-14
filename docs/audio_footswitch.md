@@ -1,7 +1,7 @@
 # Audio and footswitch processing
 
-Milestone 4 adds interpretable behavioral audio and foot-contact baselines after the explicit clock
-alignment created in Milestone 3.
+The audio and footswitch workflows add interpretable behavioral and foot-contact baselines after
+explicit reference-clock alignment.
 
 ## Audio loading
 

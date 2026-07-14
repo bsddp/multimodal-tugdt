@@ -113,6 +113,17 @@ class FusionConfig:
 
 
 @dataclass(frozen=True)
+class DualTaskCostConfig:
+    """Explicit pairing and metric-direction rules for dual-task cost outputs."""
+
+    enabled: bool
+    group_columns: tuple[str, ...]
+    single_condition: str
+    dual_condition: str
+    metric_directions: dict[str, str]
+
+
+@dataclass(frozen=True)
 class ModelingConfig:
     """Leakage-aware participant-grouped baseline evaluation settings."""
 
@@ -144,6 +155,7 @@ class ProjectConfig:
     footswitch: FootswitchConfig
     video: VideoConfig
     fusion: FusionConfig
+    dual_task_cost: DualTaskCostConfig
     modeling: ModelingConfig
     values: dict[str, Any]
 
@@ -270,12 +282,12 @@ def _load_synchronization_config(root: dict[str, Any]) -> SynchronizationConfig:
     reference = values.get("reference_modality", "imu")
     if reference != "imu":
         raise ConfigurationError(
-            "Milestone 3 currently requires 'synchronization.reference_modality: imu'."
+            "The current pipeline requires 'synchronization.reference_modality: imu'."
         )
     method = values.get("method", "manual_offset")
     if method != "manual_offset":
         raise ConfigurationError(
-            "Milestone 3 currently supports only 'synchronization.method: manual_offset'."
+            "The current pipeline supports only 'synchronization.method: manual_offset'."
         )
     timestamp_columns = _mapping(
         values.get("timestamp_columns", {"footswitch": "timestamp"}),
@@ -504,6 +516,78 @@ def _load_fusion_config(root: dict[str, Any]) -> FusionConfig:
     return FusionConfig(modalities=modalities, feature_sets=feature_sets)
 
 
+DEFAULT_DUAL_TASK_COST_METRICS = {
+    "imu__cadence_steps_min": "higher_is_better",
+    "imu__step_time_cv_pct": "higher_is_worse",
+    "imu__turn_duration_s": "higher_is_worse",
+    "footswitch__mean_step_time_s": "higher_is_worse",
+}
+
+
+def _load_dual_task_cost_config(root: dict[str, Any]) -> DualTaskCostConfig:
+    values = _mapping(root.get("dual_task_cost", {}), "dual_task_cost")
+    enabled = values.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ConfigurationError("'dual_task_cost.enabled' must be true or false.")
+
+    group_columns = _string_list(
+        values.get("group_columns", ["participant_id", "session_id"]),
+        "dual_task_cost.group_columns",
+    )
+    allowed_group_columns = {"participant_id", "session_id"}
+    unsupported = sorted(set(group_columns) - allowed_group_columns)
+    if unsupported:
+        raise ConfigurationError(
+            "'dual_task_cost.group_columns' contains unsupported values: " + ", ".join(unsupported)
+        )
+    if "participant_id" not in group_columns:
+        raise ConfigurationError(
+            "'dual_task_cost.group_columns' must include participant_id to prevent cross-person "
+            "pairing."
+        )
+
+    single_condition = values.get("single_condition", "single_task")
+    dual_condition = values.get("dual_condition", "dual_task")
+    for field, value in (
+        ("single_condition", single_condition),
+        ("dual_condition", dual_condition),
+    ):
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigurationError(f"'dual_task_cost.{field}' must be a non-empty string.")
+    if single_condition == dual_condition:
+        raise ConfigurationError(
+            "'dual_task_cost.single_condition' and 'dual_condition' must differ."
+        )
+
+    raw_metrics = _mapping(
+        values.get("metrics", DEFAULT_DUAL_TASK_COST_METRICS),
+        "dual_task_cost.metrics",
+    )
+    metric_directions: dict[str, str] = {}
+    for metric, direction in raw_metrics.items():
+        if not isinstance(metric, str) or "__" not in metric:
+            raise ConfigurationError(
+                "'dual_task_cost.metrics' keys must be modality-prefixed feature names."
+            )
+        if direction not in {"higher_is_better", "higher_is_worse"}:
+            raise ConfigurationError(
+                f"'dual_task_cost.metrics.{metric}' must be higher_is_better or higher_is_worse."
+            )
+        metric_directions[metric] = direction
+    if enabled and not metric_directions:
+        raise ConfigurationError(
+            "'dual_task_cost.metrics' must contain at least one metric when enabled."
+        )
+
+    return DualTaskCostConfig(
+        enabled=enabled,
+        group_columns=group_columns,
+        single_condition=single_condition,
+        dual_condition=dual_condition,
+        metric_directions=metric_directions,
+    )
+
+
 def _load_modeling_config(root: dict[str, Any]) -> ModelingConfig:
     values = _mapping(root.get("modeling", {}), "modeling")
     enabled = values.get("enabled", False)
@@ -518,7 +602,7 @@ def _load_modeling_config(root: dict[str, Any]) -> ModelingConfig:
     group_column = values.get("group_column", "participant_id")
     if group_column != "participant_id":
         raise ConfigurationError(
-            "Milestone 6 requires 'modeling.group_column: participant_id' to prevent leakage."
+            "'modeling.group_column' must be participant_id to prevent leakage."
         )
     default_models = (
         ["logistic_regression", "random_forest"]
@@ -615,6 +699,7 @@ def load_config(path: str | Path) -> ProjectConfig:
         footswitch=_load_footswitch_config(root),
         video=_load_video_config(root),
         fusion=_load_fusion_config(root),
+        dual_task_cost=_load_dual_task_cost_config(root),
         modeling=_load_modeling_config(root),
         values=root,
     )

@@ -1,4 +1,4 @@
-"""Project-level orchestration for the implemented research milestones."""
+"""Project-level orchestration for the integrated research pipeline."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from sklearn import __version__ as sklearn_version
 
 from multimodal_tugdt.config import ProjectConfig
 from multimodal_tugdt.features.audio_features import extract_trial_and_phase_audio_features
+from multimodal_tugdt.features.dual_task_cost import calculate_dual_task_costs
 from multimodal_tugdt.features.footswitch_features import (
     extract_trial_and_phase_footswitch_features,
 )
@@ -703,12 +704,35 @@ def extract_project_features(config: ProjectConfig, records: list[TrialRecord]) 
 def fuse_project_features(config: ProjectConfig, records: list[TrialRecord]) -> WorkflowResult:
     """Build a trial-level multimodal matrix and feature inventory."""
     result = build_trial_feature_table(config, records)
+    output_path = _write_fusion_artifacts(config, result.frame, result.inventory)
+    return WorkflowResult(len(result.frame), 0, 0, output_path)
+
+
+def _write_fusion_artifacts(
+    config: ProjectConfig,
+    fused: pd.DataFrame,
+    inventory: pd.DataFrame,
+) -> Path:
+    """Write trial fusion and the optional pair-level dual-task cost artifact."""
     feature_dir = config.output_dir / "features"
     feature_dir.mkdir(parents=True, exist_ok=True)
     output_path = feature_dir / "multimodal_features.csv"
-    result.frame.to_csv(output_path, index=False)
-    result.inventory.to_csv(feature_dir / "feature_inventory.csv", index=False)
-    return WorkflowResult(len(result.frame), 0, 0, output_path)
+    fused.to_csv(output_path, index=False)
+    inventory.to_csv(feature_dir / "feature_inventory.csv", index=False)
+    cost_path = feature_dir / "dual_task_costs.csv"
+    if config.dual_task_cost.enabled:
+        costs = calculate_dual_task_costs(fused, config.dual_task_cost)
+        costs.frame.to_csv(cost_path, index=False)
+        LOGGER.info(
+            "Dual-task cost complete: %d paired group(s), %d incomplete group(s) skipped. "
+            "Output: %s",
+            costs.paired_group_count,
+            costs.skipped_group_count,
+            cost_path,
+        )
+    elif cost_path.exists():
+        cost_path.unlink()
+    return output_path
 
 
 def _write_modeling_artifact(
@@ -726,11 +750,7 @@ def _write_modeling_artifact(
 def run_baselines_project(config: ProjectConfig, records: list[TrialRecord]) -> WorkflowResult:
     """Fuse current features and evaluate participant-grouped baseline models."""
     fused = build_trial_feature_table(config, records)
-    feature_dir = config.output_dir / "features"
-    feature_dir.mkdir(parents=True, exist_ok=True)
-    fused_path = feature_dir / "multimodal_features.csv"
-    fused.frame.to_csv(fused_path, index=False)
-    fused.inventory.to_csv(feature_dir / "feature_inventory.csv", index=False)
+    _write_fusion_artifacts(config, fused.frame, fused.inventory)
 
     evaluation = evaluate_baselines(fused.frame, config.fusion, config.modeling)
     output_dir = config.output_dir / "modeling"

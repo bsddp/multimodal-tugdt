@@ -85,3 +85,40 @@ modeling:
 
     with pytest.raises(ConfigurationError, match="positive_label"):
         load_config(config_path)
+
+
+def test_dual_task_cost_config_requires_participant_pairing(tmp_path: Path) -> None:
+    config_path = tmp_path / "invalid_dtc.yaml"
+    config_path.write_text(
+        """
+paths:
+  manifest: participants.csv
+dual_task_cost:
+  enabled: true
+  group_columns: [session_id]
+  metrics:
+    imu__cadence_steps_min: higher_is_better
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigurationError, match="participant_id"):
+        load_config(config_path)
+
+
+def test_dual_task_cost_config_validates_metric_direction(tmp_path: Path) -> None:
+    config_path = tmp_path / "invalid_dtc_direction.yaml"
+    config_path.write_text(
+        """
+paths:
+  manifest: participants.csv
+dual_task_cost:
+  enabled: true
+  metrics:
+    imu__cadence_steps_min: unknown
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigurationError, match="higher_is_better"):
+        load_config(config_path)

@@ -297,7 +297,7 @@ def _run_all_command(args: argparse.Namespace) -> int:
     baseline = run_baselines_project(config, records) if config.modeling.enabled else None
     report = generate_report_project(config, records)
     LOGGER.info(
-        "Milestone 7 pipeline complete. IMU QC: %s; synchronization QC: %s; "
+        "Integrated pipeline complete. IMU QC: %s; synchronization QC: %s; "
         "IMU features: %s; audio features: %s; footswitch features: %s; video features: %s; "
         "fused features: %s; modeling: %s; report: %s",
         preprocessing.output_path,

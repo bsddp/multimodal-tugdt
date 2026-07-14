@@ -1,8 +1,8 @@
 # IMU pipeline
 
-Milestone 2 converts configured IMU CSV files into uniform SI-unit time series, QC evidence,
-phase slices, interpretable features, and overview plots. It is designed to fail visibly when
-the input contract is unsafe.
+The IMU workflow converts configured CSV files into uniform SI-unit time series, QC evidence,
+phase slices, interpretable features, and overview plots. It is designed to fail visibly when the
+input contract is unsafe.
 
 ## Canonical signals
 
@@ -27,8 +27,8 @@ imu:
 selects `target_sensor` before applying the signal mapping. Missing optional signals are logged;
 a missing timestamp or a file with no mapped signal is an error.
 
-`mvnx` is an explicit unsupported adapter in this milestone. It raises an error asking for a CSV
-export. This prevents a partial parser from silently misinterpreting proprietary schema variants.
+`mvnx` is an explicit unsupported adapter. It raises an error asking for a CSV export. This
+prevents a partial parser from silently misinterpreting proprietary schema variants.
 
 ## Processing order
 
@@ -36,14 +36,15 @@ export. This prevents a partial parser from silently misinterpreting proprietary
 2. Record and sort nonmonotonic timestamps.
 3. Record and remove duplicate timestamps, keeping the first occurrence.
 4. Coerce signals to numeric and record missing ratios before interpolation.
-5. Interpolate internal/edge missing values when a column has at least one observed value.
+5. Interpolate internal/edge missing scalar values when a column has at least one observation.
 6. Convert acceleration and angular velocity to `m/s²` and `rad/s`.
 7. Optionally subtract a configured constant gravity value from the vertical channel.
 8. Record configurable amplitude anomaly ratios.
 9. Estimate the original sampling rate from the median positive time interval.
 10. Apply a Butterworth zero-phase low-pass filter to acceleration and angular velocity.
-11. Resample to a uniform configured rate using linear interpolation.
-12. Normalize complete four-component quaternions.
+11. Resample scalar signals to a uniform configured rate using linear interpolation.
+12. Resample complete four-component orientations with quaternion SLERP, enforce sign continuity,
+    and normalize the result.
 
 The cutoff is checked against both input and target Nyquist frequencies. Signals too short for
 zero-phase filtering are retained unfiltered with a QC warning instead of crashing or silently
@@ -67,8 +68,9 @@ External annotations are the authority. Intervals must have numeric `start_time 
 inside the processed trial, and contain samples. Slicing uses `[start_time, end_time)` so adjacent
 phases do not double-count their shared boundary.
 
-Annotation times must already use the IMU reference clock. Milestone 3 validates and copies them
-without shifting, while audio, video, and footswitch clocks require explicit offsets.
+Annotation times must already use the IMU reference clock. The synchronization workflow validates
+and copies them without shifting, while audio, video, and footswitch clocks require explicit
+offsets.
 
 ## Reproducibility commands
 

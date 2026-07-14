@@ -24,6 +24,7 @@ FEATURE_ARTIFACTS = {
     "Footswitch": "footswitch_features.csv",
     "Video": "video_features.csv",
     "Multimodal trial table": "multimodal_features.csv",
+    "Dual-task cost pairs": "dual_task_costs.csv",
 }
 
 
@@ -201,6 +202,7 @@ def generate_research_report(
         f"- Configuration file: `{config.source.name}`",
         "- Clock mapping: `reference_time = native_time + offset_seconds`",
         "- Grouped modeling unit: `participant_id`",
+        f"- Dual-task cost: `{'enabled' if config.dual_task_cost.enabled else 'disabled'}`",
         "- Generated artifacts remain excluded from version control by default.",
         "",
         "## Interpretation boundary",

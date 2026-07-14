@@ -48,7 +48,7 @@ These fixtures test software behavior only. Their values are not physiologically
 
 The implemented pipelines write the following derived files under each processed trial directory:
 
-- `imu.csv`: IMU-reference time series from Milestone 2;
+- `imu.csv`: processed IMU-reference time series;
 - `imu_qc.json`: IMU input and preprocessing evidence;
 - `sync_metadata.json`: reference timeline, explicit target alignments, QC thresholds, and errors;
 - `segments.csv`: validated annotations already expressed on the IMU reference clock;
@@ -78,6 +78,10 @@ not remove a trial.
 
 `outputs/features/feature_inventory.csv` records each fused column's modality, role, dtype,
 observed count, and missing count.
+
+When explicitly enabled, `outputs/features/dual_task_costs.csv` contains one row per complete
+single-/dual-task pair with preserved source values and direction-normalized costs. See the
+[dual-task cost contract](dual_task_cost.md).
 
 The modeling directory contains:
 

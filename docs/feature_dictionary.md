@@ -36,8 +36,16 @@ a fabricated cadence value.
 
 Step peaks and acceleration-derived range features are software baselines, not validated gait
 events or clinical biomarkers. Stance, swing, and laterality are intentionally absent from IMU
-features; Milestone 4 reports separate footswitch-derived estimates. Double support, stride, and
-gait speed remain unimplemented.
+features; separate footswitch-derived estimates provide those timing measures. Double support,
+stride, and gait speed remain unimplemented.
+
+## Dual-task cost features
+
+When enabled, the pair-level table preserves `single__<metric>` and `dual__<metric>` source values
+and adds `dtc__<metric>_pct`. Positive cost always indicates dual-task deterioration because each
+metric is explicitly declared as `higher_is_better` or `higher_is_worse`. The table also records
+the single and dual trial IDs and `dtc_valid_metric_count`. See the
+[pairing and formula contract](dual_task_cost.md).
 
 ## Audio features
 

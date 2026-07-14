@@ -100,3 +100,46 @@ def test_unit_conversion_produces_si_values(tmp_path: Path) -> None:
 
     assert result.frame["acc_ap"].mean() == pytest.approx(9.80665, rel=1e-3)
     assert result.frame["gyro_yaw"].mean() == pytest.approx(np.pi, rel=1e-3)
+
+
+def test_quaternion_resampling_uses_slerp_for_large_rotation(tmp_path: Path) -> None:
+    frame = pd.DataFrame(
+        {
+            "timestamp": [0.0, 1.0],
+            "quat_w": [1.0, 0.0],
+            "quat_x": [0.0, 0.0],
+            "quat_y": [0.0, 0.0],
+            "quat_z": [0.0, 1.0],
+        }
+    )
+    config = _imu_config(
+        tmp_path,
+        "  target_sampling_rate_hz: 4\n  lowpass_cutoff_hz: 1",
+    )
+
+    result = preprocess_imu(frame, config)
+    quarter = result.frame.loc[np.isclose(result.frame["timestamp"], 0.25)].iloc[0]
+
+    assert quarter["quat_w"] == pytest.approx(np.cos(np.pi / 8), rel=1e-6)
+    assert quarter["quat_z"] == pytest.approx(np.sin(np.pi / 8), rel=1e-6)
+
+
+def test_quaternion_slerp_handles_antipodal_equivalent_inputs(tmp_path: Path) -> None:
+    frame = pd.DataFrame(
+        {
+            "timestamp": [0.0, 1.0],
+            "quat_w": [1.0, -1.0],
+            "quat_x": [0.0, 0.0],
+            "quat_y": [0.0, 0.0],
+            "quat_z": [0.0, 0.0],
+        }
+    )
+    config = _imu_config(
+        tmp_path,
+        "  target_sampling_rate_hz: 4\n  lowpass_cutoff_hz: 1",
+    )
+
+    result = preprocess_imu(frame, config)
+
+    assert np.allclose(result.frame["quat_w"], 1.0)
+    assert np.allclose(result.frame[["quat_x", "quat_y", "quat_z"]], 0.0)

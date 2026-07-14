@@ -109,7 +109,7 @@ class MVNXLoader(BaseIMULoader):
     def load(self, path: str | Path) -> pd.DataFrame:
         source = Path(path).expanduser().resolve()
         raise IMULoadError(
-            "Direct MVNX parsing is not implemented in Milestone 2. "
+            "Direct MVNX parsing is not implemented. "
             f"Export a CSV and configure imu.format as wide_csv or long_csv: {source}"
         )
 

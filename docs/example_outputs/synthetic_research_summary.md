@@ -48,6 +48,7 @@ Warnings require review; they are not silently converted to passes. A row count 
 | Footswitch | available | 16 | 2 | 14 |
 | Video | available | 0 | 0 | 0 |
 | Multimodal trial table | available | 2 | 2 | 0 |
+| Dual-task cost pairs | available | 1 | 1 | 0 |
 
 ## Modeling status
 
@@ -58,6 +59,7 @@ Baseline modeling is disabled in the example configuration because the public sy
 - Configuration file: `example.yaml`
 - Clock mapping: `reference_time = native_time + offset_seconds`
 - Grouped modeling unit: `participant_id`
+- Dual-task cost: `enabled`
 - Generated artifacts remain excluded from version control by default.
 
 ## Interpretation boundary

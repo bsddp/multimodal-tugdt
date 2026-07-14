@@ -1,6 +1,6 @@
 # Feature fusion and baseline modeling
 
-Milestone 6 creates a trial-level research matrix and compares interpretable single- and
+The modeling workflow creates a trial-level research matrix and compares interpretable single- and
 multimodal baselines. It does not train deep networks, tune hyperparameters, or claim clinical
 validity.
 

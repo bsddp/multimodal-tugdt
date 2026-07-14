@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from scipy.signal import butter, sosfiltfilt
+from scipy.spatial.transform import Rotation, Slerp
 
 from multimodal_tugdt.config import IMUConfig
 
@@ -68,10 +69,13 @@ def _sampling_interval_cv(timestamps: np.ndarray) -> float | None:
 
 def _interpolate_missing(frame: pd.DataFrame, quality: IMUQualityReport) -> pd.DataFrame:
     result = frame.copy()
+    complete_quaternion = all(column in result for column in QUATERNION_COLUMNS)
     for column in result.columns:
         if column == "timestamp":
             continue
         result[column] = pd.to_numeric(result[column], errors="coerce")
+        if complete_quaternion and column in QUATERNION_COLUMNS:
+            continue
         if result[column].notna().any():
             result[column] = result[column].interpolate(limit_direction="both")
         else:
@@ -141,7 +145,53 @@ def _lowpass_series(
     return pd.Series(filtered, index=values.index, name=values.name)
 
 
-def _resample_uniform(frame: pd.DataFrame, target_rate_hz: float) -> pd.DataFrame:
+def _continuous_quaternion_sign(values: np.ndarray) -> np.ndarray:
+    result = values.copy()
+    for index in range(1, len(result)):
+        if np.dot(result[index - 1], result[index]) < 0:
+            result[index] *= -1
+    return result
+
+
+def _slerp_quaternions(
+    source_time: np.ndarray,
+    values_wxyz: np.ndarray,
+    target_time: np.ndarray,
+    quality: IMUQualityReport,
+) -> np.ndarray:
+    norms = np.linalg.norm(values_wxyz, axis=1)
+    valid = np.isfinite(values_wxyz).all(axis=1) & np.isfinite(norms)
+    valid &= norms > np.finfo(float).eps
+    if not valid.any():
+        message = "Quaternion SLERP had no valid source orientations; output was retained as NaN."
+        quality.warnings.append(message)
+        LOGGER.warning(message)
+        return np.full((len(target_time), 4), np.nan)
+
+    valid_time = source_time[valid]
+    normalized = values_wxyz[valid] / norms[valid, None]
+    normalized = _continuous_quaternion_sign(normalized)
+    invalid_count = int((~valid).sum())
+    if invalid_count:
+        message = f"Quaternion SLERP ignored {invalid_count} invalid source row(s)."
+        quality.warnings.append(message)
+        LOGGER.warning(message)
+    if len(valid_time) == 1:
+        return np.repeat(normalized, len(target_time), axis=0)
+
+    rotations = Rotation.from_quat(normalized[:, [1, 2, 3, 0]])
+    interpolation = Slerp(valid_time, rotations)
+    evaluation_time = np.clip(target_time, valid_time[0], valid_time[-1])
+    output_xyzw = interpolation(evaluation_time).as_quat()
+    output_wxyz = output_xyzw[:, [3, 0, 1, 2]]
+    return _continuous_quaternion_sign(output_wxyz)
+
+
+def _resample_uniform(
+    frame: pd.DataFrame,
+    target_rate_hz: float,
+    quality: IMUQualityReport,
+) -> pd.DataFrame:
     start = float(frame["timestamp"].iloc[0])
     end = float(frame["timestamp"].iloc[-1])
     step = 1.0 / target_rate_hz
@@ -149,8 +199,21 @@ def _resample_uniform(frame: pd.DataFrame, target_rate_hz: float) -> pd.DataFram
     target_time = target_time[target_time <= end + 1e-9]
     result = {"timestamp": target_time}
     source_time = frame["timestamp"].to_numpy(dtype=float)
+    complete_quaternion = all(column in frame for column in QUATERNION_COLUMNS)
+    if complete_quaternion:
+        quaternion_values = frame[list(QUATERNION_COLUMNS)].to_numpy(dtype=float)
+        interpolated = _slerp_quaternions(
+            source_time,
+            quaternion_values,
+            target_time,
+            quality,
+        )
+        for index, column in enumerate(QUATERNION_COLUMNS):
+            result[column] = interpolated[:, index]
     for column in frame.columns:
         if column == "timestamp":
+            continue
+        if complete_quaternion and column in QUATERNION_COLUMNS:
             continue
         values = frame[column].to_numpy(dtype=float)
         finite = np.isfinite(values)
@@ -248,7 +311,7 @@ def preprocess_imu(frame: pd.DataFrame, config: IMUConfig) -> IMUPreprocessResul
             quality=quality,
         )
 
-    resampled = _resample_uniform(working, config.target_sampling_rate_hz)
+    resampled = _resample_uniform(working, config.target_sampling_rate_hz, quality)
     resampled = _normalize_quaternions(resampled, quality)
     if not math.isclose(input_rate, config.target_sampling_rate_hz, rel_tol=0.01):
         quality.warnings.append(

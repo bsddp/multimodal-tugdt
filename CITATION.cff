@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite the repository and the version used."
 title: "Multimodal TUG-DT Analysis Pipeline"
 type: software
-version: 0.7.0
+version: 0.8.0
 authors:
   - name: "Multimodal TUG-DT contributors"
 repository-code: "https://github.com/bsddp/multimodal-tugdt"

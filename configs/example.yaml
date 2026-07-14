@@ -107,6 +107,17 @@ fusion:
     imu_audio_video: [imu, audio, video]
     all_available: [imu, audio, video, footswitch, clinical]
 
+dual_task_cost:
+  enabled: true
+  group_columns: [participant_id, session_id]
+  single_condition: single_task
+  dual_condition: dual_task
+  metrics:
+    imu__cadence_steps_min: higher_is_better
+    imu__step_time_cv_pct: higher_is_worse
+    imu__turn_duration_s: higher_is_worse
+    footswitch__mean_step_time_s: higher_is_worse
+
 modeling:
   # The committed demo contains one synthetic participant, so modeling is not
   # part of run-all by default. Use a study with enough participant groups.

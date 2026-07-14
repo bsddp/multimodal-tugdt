@@ -1,8 +1,8 @@
 # Synchronization
 
-Milestone 3 creates an auditable mapping from each available target modality to the processed IMU
-reference clock. It never assumes that file time zero is shared merely because two files have the
-same duration.
+The synchronization workflow creates an auditable mapping from each available target modality to
+the processed IMU reference clock. It never assumes that file time zero is shared merely because
+two files have the same duration.
 
 ## Clock equation
 
@@ -49,7 +49,7 @@ Missing uncertainty does not invent a value: it is stored as null and produces a
 - Media timelines currently start at native time zero; their configured offset places that zero on
   the IMU clock.
 
-Footswitch timestamps must be finite and monotonic. Milestone 3 does not sort or repair a target
+Footswitch timestamps must be finite and monotonic. The workflow does not sort or repair a target
 clock because doing so could hide an acquisition problem.
 
 ## Recorded evidence

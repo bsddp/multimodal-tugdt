@@ -1,7 +1,7 @@
 # Video processing
 
-Milestone 5 provides a deliberately optional video interface. Metadata processing can run without
-pose estimation, and an absent video never blocks the IMU, audio, or footswitch workflows.
+The deliberately optional video interface can process metadata without pose estimation, and an
+absent video never blocks the IMU, audio, or footswitch workflows.
 
 ## Supported inputs and metadata
 
@@ -48,8 +48,8 @@ downloaded automatically, which keeps licensing and provenance decisions visible
 `frame_step: 2`, for example, evaluates every second decoded frame.
 
 The implementation uses MediaPipe Tasks in video mode and passes an increasing timestamp for every
-sampled frame. It exports the first detected person only; multi-person tracking is outside this
-milestone.
+sampled frame. It exports the first detected person only; multi-person tracking is outside the
+current interface.
 
 ## Derived tables
 

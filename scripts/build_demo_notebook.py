@@ -128,7 +128,30 @@ plt.tight_layout()
 plt.show()"""
         ),
         nbf.v4.new_markdown_cell(
-            """### 3. Read the aggregate report
+            """### 3. Inspect the opt-in dual-task cost
+
+The example configuration explicitly pairs the single- and dual-task trials. Positive cost is
+defined as deterioration according to the declared direction for each metric."""
+        ),
+        nbf.v4.new_code_cell(
+            """costs = pd.read_csv(project_root / "outputs/features/dual_task_costs.csv")
+cost_view = costs[
+    [
+        "single__imu_cadence_steps_min",
+        "dual__imu_cadence_steps_min",
+        "dtc__imu_cadence_steps_min_pct",
+    ]
+].rename(
+    columns={
+        "single__imu_cadence_steps_min": "single cadence",
+        "dual__imu_cadence_steps_min": "dual cadence",
+        "dtc__imu_cadence_steps_min_pct": "cadence cost (%)",
+    }
+)
+display(cost_view.round(3))"""
+        ),
+        nbf.v4.new_markdown_cell(
+            """### 4. Read the aggregate report
 
 The report deliberately omits participant identifiers, raw paths, and participant-level feature
 values. It summarizes whether required software artifacts exist and states the interpretation
@@ -142,9 +165,9 @@ boundary."""
         nbf.v4.new_markdown_cell(
             """## Checks
 
-These executable checks make the demo's intended behavior auditable: two trials are fused, the
-three generated sensor modalities and clinical metadata are available, video remains absent, and
-no QC stage reports a failure."""
+These executable checks make the demo's intended behavior auditable: two trials are fused, one
+single/dual pair is derived, the generated sensor modalities and clinical metadata are available,
+video remains absent, and no QC stage reports a failure."""
         ),
         nbf.v4.new_code_cell(
             """assert len(features) == 2
@@ -154,6 +177,8 @@ assert features["availability__audio"].eq(1).all()
 assert features["availability__footswitch"].eq(1).all()
 assert features["availability__clinical"].eq(1).all()
 assert features["availability__video"].eq(0).all()
+assert len(costs) == 1
+assert costs["dtc__imu_cadence_steps_min_pct"].notna().all()
 assert qc_summary["fail"].sum() == 0
 print("All synthetic workflow checks passed.")"""
         ),

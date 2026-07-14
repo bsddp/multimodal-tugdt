@@ -45,6 +45,10 @@ fusion:
   feature_sets:
     imu: [imu]
     all: [imu, audio, video, footswitch, clinical]
+dual_task_cost:
+  enabled: true
+  metrics:
+    imu__cadence_steps_min: higher_is_better
 modeling:
   enabled: false
   target_column: clinical__moca
@@ -62,6 +66,9 @@ modeling:
     assert fused["availability__video"].eq(0).all()
     assert "clinical__moca" in fused
     assert not inventory.empty
+    costs = pd.read_csv(tmp_path / "outputs/features/dual_task_costs.csv")
+    assert len(costs) == 1
+    assert costs["dtc__imu_cadence_steps_min_pct"].notna().all()
     assert (tmp_path / "outputs/reports/research_summary.md").is_file()
     assert not (tmp_path / "outputs/modeling/summary_metrics.csv").exists()
 
