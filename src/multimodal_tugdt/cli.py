@@ -13,10 +13,12 @@ from multimodal_tugdt.io.manifest import validate_manifest
 from multimodal_tugdt.logging_utils import configure_logging
 from multimodal_tugdt.pipeline import (
     extract_project_features,
+    fuse_project_features,
     preprocess_project,
     process_audio_project,
     process_footswitch_project,
     process_video_project,
+    run_baselines_project,
     synchronize_project,
 )
 from multimodal_tugdt.synthetic import generate_synthetic_dataset
@@ -91,9 +93,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     features.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
 
+    fusion = subparsers.add_parser(
+        "fuse-features",
+        help="Build a trial-level multimodal feature matrix with availability indicators.",
+    )
+    fusion.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
+
+    baselines = subparsers.add_parser(
+        "run-baselines",
+        help="Evaluate participant-grouped classification or regression baselines.",
+    )
+    baselines.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
+
     run_all = subparsers.add_parser(
         "run-all",
-        help="Run validation, IMU preprocessing, synchronization, and feature extraction.",
+        help="Run implemented stages through fusion and optionally grouped baselines.",
     )
     run_all.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
     return parser
@@ -225,6 +239,25 @@ def _video_command(args: argparse.Namespace) -> int:
     return 1 if result.failed else 0
 
 
+def _fusion_command(args: argparse.Namespace) -> int:
+    config, records = _validated_records(args.config)
+    result = fuse_project_features(config, records)
+    LOGGER.info("Fused %d trial rows. Features: %s", result.succeeded, result.output_path)
+    return 0
+
+
+def _baselines_command(args: argparse.Namespace) -> int:
+    config, records = _validated_records(args.config)
+    result = run_baselines_project(config, records)
+    LOGGER.info(
+        "Baseline evaluation complete: %d successful comparisons, %d skipped. Summary: %s",
+        result.succeeded,
+        result.skipped,
+        result.output_path,
+    )
+    return 1 if result.failed else 0
+
+
 def _run_all_command(args: argparse.Namespace) -> int:
     config, records = _validated_records(args.config)
     preprocessing = preprocess_project(config, records)
@@ -239,17 +272,26 @@ def _run_all_command(args: argparse.Namespace) -> int:
     footswitch = process_footswitch_project(config, records)
     video = process_video_project(config, records)
     features = extract_project_features(config, records)
+    feature_results = (audio, footswitch, video, features)
+    if any(item.failed for item in feature_results):
+        LOGGER.error("Fusion was not run because one or more feature stages failed.")
+        return 1
+    fusion = fuse_project_features(config, records)
+    baseline = run_baselines_project(config, records) if config.modeling.enabled else None
     LOGGER.info(
-        "Milestone 5 pipeline complete. IMU QC: %s; synchronization QC: %s; "
-        "IMU features: %s; audio features: %s; footswitch features: %s; video features: %s",
+        "Milestone 6 pipeline complete. IMU QC: %s; synchronization QC: %s; "
+        "IMU features: %s; audio features: %s; footswitch features: %s; video features: %s; "
+        "fused features: %s; modeling: %s",
         preprocessing.output_path,
         synchronization.output_path,
         features.output_path,
         audio.output_path,
         footswitch.output_path,
         video.output_path,
+        fusion.output_path,
+        baseline.output_path if baseline is not None else "disabled in configuration",
     )
-    return 1 if any(item.failed for item in (audio, footswitch, video, features)) else 0
+    return 1 if baseline is not None and baseline.failed else 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -274,6 +316,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _video_command(args)
         if args.command == "extract-features":
             return _features_command(args)
+        if args.command == "fuse-features":
+            return _fusion_command(args)
+        if args.command == "run-baselines":
+            return _baselines_command(args)
         if args.command == "run-all":
             return _run_all_command(args)
     except (ConfigurationError, OSError, ValueError) as exc:

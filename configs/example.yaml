@@ -89,6 +89,41 @@ video:
   minimum_pose_presence_confidence: 0.5
   minimum_tracking_confidence: 0.5
 
+fusion:
+  modalities:
+    - imu
+    - audio
+    - video
+    - footswitch
+    - clinical
+  feature_sets:
+    imu: [imu]
+    audio: [audio]
+    video: [video]
+    clinical: [clinical]
+    imu_clinical: [imu, clinical]
+    imu_audio: [imu, audio]
+    imu_video: [imu, video]
+    imu_audio_video: [imu, audio, video]
+    all_available: [imu, audio, video, footswitch, clinical]
+
+modeling:
+  # The committed demo contains one synthetic participant, so modeling is not
+  # part of run-all by default. Use a study with enough participant groups.
+  enabled: false
+  target_column: clinical__moca
+  task_type: regression
+  group_column: participant_id
+  folds: 5
+  random_seed: 42
+  models:
+    - ridge
+    - random_forest
+  cohort_modes:
+    - all_samples
+    - complete_modalities
+  positive_label: null
+
 study:
   allowed_conditions:
     - single_task

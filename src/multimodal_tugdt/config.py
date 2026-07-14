@@ -105,6 +105,29 @@ class VideoConfig:
 
 
 @dataclass(frozen=True)
+class FusionConfig:
+    """Settings for trial-level feature-table fusion and modality comparisons."""
+
+    modalities: tuple[str, ...]
+    feature_sets: dict[str, tuple[str, ...]]
+
+
+@dataclass(frozen=True)
+class ModelingConfig:
+    """Leakage-aware participant-grouped baseline evaluation settings."""
+
+    enabled: bool
+    target_column: str
+    task_type: str
+    group_column: str
+    folds: int
+    random_seed: int
+    models: tuple[str, ...]
+    cohort_modes: tuple[str, ...]
+    positive_label: Any | None
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     """Validated configuration plus reproducible path-resolution rules."""
 
@@ -120,6 +143,8 @@ class ProjectConfig:
     audio: AudioConfig
     footswitch: FootswitchConfig
     video: VideoConfig
+    fusion: FusionConfig
+    modeling: ModelingConfig
     values: dict[str, Any]
 
     def resolve_path(self, value: str | Path) -> Path:
@@ -429,6 +454,112 @@ def _load_video_config(root: dict[str, Any]) -> VideoConfig:
     )
 
 
+SUPPORTED_FUSION_MODALITIES = ("imu", "audio", "video", "footswitch", "clinical")
+
+
+def _string_list(value: Any, field: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value:
+        raise ConfigurationError(f"'{field}' must be a non-empty list.")
+    if not all(isinstance(item, str) and item.strip() for item in value):
+        raise ConfigurationError(f"'{field}' entries must be non-empty strings.")
+    if len(set(value)) != len(value):
+        raise ConfigurationError(f"'{field}' must not contain duplicates.")
+    return tuple(value)
+
+
+def _load_fusion_config(root: dict[str, Any]) -> FusionConfig:
+    values = _mapping(root.get("fusion", {}), "fusion")
+    modalities = _string_list(
+        values.get("modalities", list(SUPPORTED_FUSION_MODALITIES)),
+        "fusion.modalities",
+    )
+    unsupported = sorted(set(modalities) - set(SUPPORTED_FUSION_MODALITIES))
+    if unsupported:
+        raise ConfigurationError(
+            "'fusion.modalities' contains unsupported values: " + ", ".join(unsupported)
+        )
+    default_sets = {modality: [modality] for modality in modalities}
+    default_sets.update(
+        {
+            "imu_clinical": ["imu", "clinical"],
+            "imu_audio": ["imu", "audio"],
+            "imu_video": ["imu", "video"],
+            "imu_audio_video": ["imu", "audio", "video"],
+            "all_available": list(modalities),
+        }
+    )
+    raw_sets = _mapping(values.get("feature_sets", default_sets), "fusion.feature_sets")
+    feature_sets: dict[str, tuple[str, ...]] = {}
+    for name, raw_modalities in raw_sets.items():
+        if not isinstance(name, str) or not name.strip():
+            raise ConfigurationError("'fusion.feature_sets' names must be non-empty strings.")
+        selected = _string_list(raw_modalities, f"fusion.feature_sets.{name}")
+        unknown = sorted(set(selected) - set(modalities))
+        if unknown:
+            raise ConfigurationError(
+                f"'fusion.feature_sets.{name}' references disabled modalities: "
+                + ", ".join(unknown)
+            )
+        feature_sets[name] = selected
+    return FusionConfig(modalities=modalities, feature_sets=feature_sets)
+
+
+def _load_modeling_config(root: dict[str, Any]) -> ModelingConfig:
+    values = _mapping(root.get("modeling", {}), "modeling")
+    enabled = values.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ConfigurationError("'modeling.enabled' must be true or false.")
+    target = values.get("target_column", "clinical__moca")
+    if not isinstance(target, str) or not target.strip():
+        raise ConfigurationError("'modeling.target_column' must be a non-empty string.")
+    task_type = values.get("task_type", "regression")
+    if task_type not in {"classification", "regression"}:
+        raise ConfigurationError("'modeling.task_type' must be classification or regression.")
+    group_column = values.get("group_column", "participant_id")
+    if group_column != "participant_id":
+        raise ConfigurationError(
+            "Milestone 6 requires 'modeling.group_column: participant_id' to prevent leakage."
+        )
+    default_models = (
+        ["logistic_regression", "random_forest"]
+        if task_type == "classification"
+        else ["ridge", "random_forest"]
+    )
+    models = _string_list(values.get("models", default_models), "modeling.models")
+    supported_models = (
+        {"logistic_regression", "random_forest"}
+        if task_type == "classification"
+        else {"linear_regression", "ridge", "random_forest"}
+    )
+    unsupported = sorted(set(models) - supported_models)
+    if unsupported:
+        raise ConfigurationError(f"Unsupported {task_type} models: " + ", ".join(unsupported))
+    cohort_modes = _string_list(
+        values.get("cohort_modes", ["all_samples", "complete_modalities"]),
+        "modeling.cohort_modes",
+    )
+    invalid_cohorts = sorted(set(cohort_modes) - {"all_samples", "complete_modalities"})
+    if invalid_cohorts:
+        raise ConfigurationError("Unsupported cohort modes: " + ", ".join(invalid_cohorts))
+    seed = values.get("random_seed", 42)
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise ConfigurationError("'modeling.random_seed' must be an integer.")
+    positive_label = values.get("positive_label")
+    if task_type == "classification" and positive_label is None:
+        raise ConfigurationError("'modeling.positive_label' must be declared for classification.")
+    return ModelingConfig(
+        enabled=enabled,
+        target_column=target,
+        task_type=task_type,
+        group_column=group_column,
+        folds=_positive_int(values.get("folds", 5), "modeling.folds"),
+        random_seed=seed,
+        models=models,
+        cohort_modes=cohort_modes,
+        positive_label=positive_label,
+    )
+
+
 def load_config(path: str | Path) -> ProjectConfig:
     """Load and validate project, path, study, and IMU settings."""
     source = Path(path).expanduser().resolve()
@@ -483,5 +614,7 @@ def load_config(path: str | Path) -> ProjectConfig:
         audio=_load_audio_config(root),
         footswitch=_load_footswitch_config(root),
         video=_load_video_config(root),
+        fusion=_load_fusion_config(root),
+        modeling=_load_modeling_config(root),
         values=root,
     )

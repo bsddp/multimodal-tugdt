@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "multimodal-tugdt"
-version = "0.5.0"
+version = "0.6.0"
 description = "A reproducible pipeline for multimodal single-task and dual-task Timed Up and Go research."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -28,6 +28,7 @@ dependencies = [
   "numpy>=1.26",
   "pandas>=2.2",
   "PyYAML>=6.0",
+  "scikit-learn>=1.4",
   "scipy>=1.11",
 ]
 

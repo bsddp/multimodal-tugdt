@@ -5,12 +5,12 @@ multimodal data collected during single-task and dual-task Timed Up and Go (TUG)
 The data contract covers IMU/Xsens-derived motion, video, audio, footswitch signals, manual
 phase annotations, and clinical or demographic metadata.
 
-> Status: Milestones 1–5 are implemented. The repository provides the project and manifest
+> Status: Milestones 1–6 are implemented. The repository provides the project and manifest
 > contracts, privacy-safe synthetic data, configurable IMU CSV adapters, signal quality control,
 > filtering, resampling, manual TUG phase segmentation, interpretable IMU features, plots, and
-> explicit manual-offset synchronization with auditable metadata. Automatic alignment and
-> modeling remain future work. Audio energy VAD, footswitch event analysis, video inspection,
-> and optional two-dimensional pose proxies are interpretable baselines rather than clinical claims.
+> explicit manual-offset synchronization with auditable metadata. Audio energy VAD, footswitch
+> event analysis, video inspection, optional two-dimensional pose proxies, feature-level fusion,
+> and participant-grouped baseline models are research baselines rather than clinical claims.
 
 ## Why this project exists
 
@@ -24,7 +24,7 @@ The long-term research goal is to support clinically interpretable investigation
 cognitive-motor interference. This software is a research tool. It does not diagnose disease
 and currently makes no clinical claims.
 
-## Supported through Milestone 5
+## Supported through Milestone 6
 
 - YAML configuration with paths resolved from an explicit project root
 - CSV participant/trial manifest with optional missing modalities
@@ -60,6 +60,15 @@ and currently makes no clinical claims.
 - Trial- and phase-level pose detection, trunk lean, pelvis trajectory, ankle-separation, and
   lower-limb symmetry proxy features
 - Metadata-only video processing when pose estimation is disabled
+- Trial-level outer fusion that preserves missing modalities and adds explicit availability flags
+- Machine-readable feature inventory with modality, dtype, observed, and missing counts
+- Configurable single-modality and multimodal feature-set comparisons
+- All-sample and complete-modality cohort evaluations
+- Fold-local median imputation and scaling inside scikit-learn Pipelines
+- Participant-grouped regression with linear, ridge, and random-forest baselines
+- Participant-stratified grouped binary classification with logistic and random-forest baselines
+- Fold metrics, summary comparisons, out-of-fold predictions, skipped evaluations, and a split
+  audit proving zero participant overlap
 - Automated unit and integration tests
 
 Video remains intentionally absent from the committed synthetic demo. That absence exercises
@@ -117,7 +126,14 @@ tugdt process-audio --config configs/example.yaml
 tugdt process-footswitch --config configs/example.yaml
 tugdt process-video --config configs/example.yaml
 tugdt extract-features --config configs/example.yaml
+tugdt fuse-features --config configs/example.yaml
+tugdt run-baselines --config configs/example.yaml
 ```
+
+The committed demonstration contains one synthetic participant, so `modeling.enabled` is false in
+`configs/example.yaml`. This prevents invalid cross-validation during `run-all`. Explicit baseline
+evaluation requires a study with at least two independent participant groups, and binary
+classification requires at least two participant groups containing each class.
 
 Generated private/derived outputs are ignored by Git and written under:
 
@@ -145,6 +161,14 @@ outputs/features/imu_features.csv
 outputs/features/audio_features.csv
 outputs/features/footswitch_features.csv
 outputs/features/video_features.csv
+outputs/features/multimodal_features.csv
+outputs/features/feature_inventory.csv
+outputs/modeling/fold_metrics.csv
+outputs/modeling/summary_metrics.csv
+outputs/modeling/predictions.csv
+outputs/modeling/split_audit.csv
+outputs/modeling/skipped_evaluations.csv
+outputs/modeling/modeling_metadata.json
 outputs/plots/*_imu.png
 outputs/plots/*_synchronization.png
 ```
@@ -171,6 +195,7 @@ multimodal-tugdt/
 │   ├── audio_footswitch.md
 │   ├── feature_dictionary.md
 │   ├── imu_pipeline.md
+│   ├── modeling.md
 │   ├── synchronization.md
 │   └── video_pipeline.md
 ├── src/multimodal_tugdt/
@@ -184,6 +209,8 @@ multimodal-tugdt/
 │   ├── segmentation/
 │   ├── synchronization/
 │   ├── features/
+│   ├── fusion/
+│   ├── modeling/
 │   └── visualization/
 ├── tests/
 ├── README.md
@@ -234,6 +261,9 @@ Audio VAD, foot-contact event definitions, and IMU agreement metrics are documen
 Video metadata, optional MediaPipe configuration, landmark tables, and the mathematical limits of
 the two-dimensional proxy features are documented in [video processing](docs/video_pipeline.md).
 
+Feature fusion, missing-modality handling, grouped split rules, metrics, and modeling artifacts are
+documented in [fusion and baseline modeling](docs/modeling.md).
+
 ## Synthetic demonstration
 
 The generator creates a pair of single-task and dual-task trials for each requested synthetic
@@ -263,8 +293,9 @@ public release. Public examples must be synthetic or appropriately de-identified
    debounced gait events, timing features, and IMU-event agreement.
 5. **Milestone 5 — video interface (complete):** metadata inspection, optional MediaPipe Tasks
    pose extraction, aligned landmarks, QC, and transparent two-dimensional proxy features.
-6. **Milestone 6 — fusion and baselines:** modality-prefixed features and participant-grouped
-   scikit-learn evaluation without leakage.
+6. **Milestone 6 — fusion and baselines (complete):** modality-prefixed feature fusion,
+   availability indicators, fold-local preprocessing, participant-grouped evaluation, single- and
+   multimodal comparisons, and split-audit artifacts.
 7. **Milestone 7 — research presentation:** reports, example outputs, notebooks, limitations,
    and citation guidance.
 
@@ -300,6 +331,15 @@ are outside the current scope.
 - Video coordinates are monocular normalized image coordinates. Trunk lean, pelvis displacement,
   ankle separation, and symmetry outputs are explicitly proxies, not calibrated 3D kinematics,
   joint angles, step length, or clinical scores.
+- Baseline modeling accepts numeric predictors only. Non-numeric clinical fields remain in the
+  fused table for provenance but are not silently encoded.
+- Classification is binary in Milestone 6. ROC AUC is left blank for any test fold containing only
+  one class rather than inventing a value.
+- Grouped cross-validation prevents participant overlap but is not an external validation cohort,
+  nested model-selection study, or guarantee of generalization. No hyperparameter search is run.
+- The committed one-participant demo cannot support valid modeling; it demonstrates fusion only.
+- Paired single-/dual-task cost calculation is not automatically added to the fused table in this
+  milestone and must not be inferred from condition labels alone.
 
 ## License
 

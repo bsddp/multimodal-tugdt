@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
+from sklearn import __version__ as sklearn_version
 
 from multimodal_tugdt.config import ProjectConfig
 from multimodal_tugdt.features.audio_features import extract_trial_and_phase_audio_features
@@ -16,6 +17,7 @@ from multimodal_tugdt.features.footswitch_features import (
 )
 from multimodal_tugdt.features.imu_features import extract_trial_and_phase_features
 from multimodal_tugdt.features.video_features import VIDEO_FEATURE_COLUMNS, extract_video_features
+from multimodal_tugdt.fusion.feature_level import build_trial_feature_table
 from multimodal_tugdt.io.audio_loader import load_audio
 from multimodal_tugdt.io.imu_loader import create_imu_loader
 from multimodal_tugdt.io.manifest import TrialRecord
@@ -24,6 +26,7 @@ from multimodal_tugdt.io.video_loader import (
     extract_mediapipe_pose,
     inspect_video,
 )
+from multimodal_tugdt.modeling.evaluation import evaluate_baselines
 from multimodal_tugdt.preprocessing.audio import run_energy_vad
 from multimodal_tugdt.preprocessing.footswitch import process_footswitch
 from multimodal_tugdt.preprocessing.imu import preprocess_imu
@@ -694,3 +697,120 @@ def extract_project_features(config: ProjectConfig, records: list[TrialRecord]) 
     elif failure_path.exists():
         failure_path.unlink()
     return WorkflowResult(succeeded, failed, skipped, output_path)
+
+
+def fuse_project_features(config: ProjectConfig, records: list[TrialRecord]) -> WorkflowResult:
+    """Build a trial-level multimodal matrix and feature inventory."""
+    result = build_trial_feature_table(config, records)
+    feature_dir = config.output_dir / "features"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    output_path = feature_dir / "multimodal_features.csv"
+    result.frame.to_csv(output_path, index=False)
+    result.inventory.to_csv(feature_dir / "feature_inventory.csv", index=False)
+    return WorkflowResult(len(result.frame), 0, 0, output_path)
+
+
+def _write_modeling_artifact(
+    frame: pd.DataFrame,
+    path: Path,
+    empty_columns: tuple[str, ...],
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if frame.empty:
+        pd.DataFrame(columns=empty_columns).to_csv(path, index=False)
+    else:
+        frame.to_csv(path, index=False)
+
+
+def run_baselines_project(config: ProjectConfig, records: list[TrialRecord]) -> WorkflowResult:
+    """Fuse current features and evaluate participant-grouped baseline models."""
+    fused = build_trial_feature_table(config, records)
+    feature_dir = config.output_dir / "features"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    fused_path = feature_dir / "multimodal_features.csv"
+    fused.frame.to_csv(fused_path, index=False)
+    fused.inventory.to_csv(feature_dir / "feature_inventory.csv", index=False)
+
+    evaluation = evaluate_baselines(fused.frame, config.fusion, config.modeling)
+    output_dir = config.output_dir / "modeling"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    modeling_metadata = {
+        "schema_version": 1,
+        "task_type": config.modeling.task_type,
+        "target_column": config.modeling.target_column,
+        "group_column": config.modeling.group_column,
+        "requested_folds": config.modeling.folds,
+        "random_seed": config.modeling.random_seed,
+        "models": list(config.modeling.models),
+        "cohort_modes": list(config.modeling.cohort_modes),
+        "positive_label": config.modeling.positive_label,
+        "feature_sets": {
+            name: list(modalities) for name, modalities in config.fusion.feature_sets.items()
+        },
+        "preprocessing_scope": "fit within each training fold",
+        "scikit_learn_version": sklearn_version,
+        "successful_evaluations": evaluation.successful_evaluations,
+        "skipped_evaluation_count": len(evaluation.skipped),
+    }
+    (output_dir / "modeling_metadata.json").write_text(
+        json.dumps(modeling_metadata, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    common = (
+        "task_type",
+        "target_column",
+        "feature_set",
+        "modalities",
+        "cohort",
+        "model",
+    )
+    _write_modeling_artifact(
+        evaluation.fold_metrics,
+        output_dir / "fold_metrics.csv",
+        (*common, "fold", "n_samples", "n_groups", "n_features", "n_folds"),
+    )
+    summary_path = output_dir / "summary_metrics.csv"
+    _write_modeling_artifact(
+        evaluation.summary_metrics,
+        summary_path,
+        (
+            *common,
+            "n_samples",
+            "n_groups",
+            "n_features",
+            "n_folds",
+            "metric",
+            "mean",
+            "standard_deviation",
+            "valid_fold_count",
+        ),
+    )
+    _write_modeling_artifact(
+        evaluation.predictions,
+        output_dir / "predictions.csv",
+        (*IDENTIFIER_COLUMNS, *common, "fold", "y_true", "y_pred", "y_score"),
+    )
+    _write_modeling_artifact(
+        evaluation.split_audit,
+        output_dir / "split_audit.csv",
+        (
+            *common[:-1],
+            "fold",
+            "train_group_count",
+            "test_group_count",
+            "group_overlap_count",
+            "train_groups",
+            "test_groups",
+        ),
+    )
+    _write_modeling_artifact(
+        evaluation.skipped,
+        output_dir / "skipped_evaluations.csv",
+        (*common, "reason"),
+    )
+    return WorkflowResult(
+        evaluation.successful_evaluations,
+        0 if evaluation.successful_evaluations else 1,
+        len(evaluation.skipped),
+        summary_path,
+    )
