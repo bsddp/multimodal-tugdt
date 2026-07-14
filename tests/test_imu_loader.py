@@ -25,9 +25,9 @@ imu:
 
 def test_wide_csv_loader_maps_configured_columns(tmp_path: Path) -> None:
     source = tmp_path / "imu.csv"
-    pd.DataFrame(
-        {"time_s": [0.0, 0.01], "pelvis_ap": [1.0, 2.0], "unused": [9, 9]}
-    ).to_csv(source, index=False)
+    pd.DataFrame({"time_s": [0.0, 0.01], "pelvis_ap": [1.0, 2.0], "unused": [9, 9]}).to_csv(
+        source, index=False
+    )
     config = load_config(
         _config(
             tmp_path,
@@ -101,4 +101,3 @@ def test_mvnx_adapter_has_explicit_export_guidance(tmp_path: Path) -> None:
     )
     with pytest.raises(IMULoadError, match="Export a CSV"):
         create_imu_loader(config.imu).load(tmp_path / "trial.mvnx")
-

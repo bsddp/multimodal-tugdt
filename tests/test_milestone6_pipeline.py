@@ -62,7 +62,23 @@ modeling:
     assert fused["availability__video"].eq(0).all()
     assert "clinical__moca" in fused
     assert not inventory.empty
+    assert (tmp_path / "outputs/reports/research_summary.md").is_file()
     assert not (tmp_path / "outputs/modeling/summary_metrics.csv").exists()
+
+    public_report = tmp_path / "public/report.md"
+    assert (
+        main(
+            [
+                "generate-report",
+                "--config",
+                str(config_path),
+                "--output",
+                str(public_report),
+            ]
+        )
+        == 0
+    )
+    assert "Baseline modeling is disabled" in public_report.read_text(encoding="utf-8")
 
     assert main(["run-baselines", "--config", str(config_path)]) == 1
     skipped = pd.read_csv(tmp_path / "outputs/modeling/skipped_evaluations.csv")

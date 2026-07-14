@@ -78,4 +78,3 @@ def test_audio_features_leave_transcript_outcomes_blank(tmp_path: Path) -> None:
     assert trial["audio__first_response_latency_s"] == pytest.approx(0.5, abs=0.05)
     assert np.isnan(trial["audio__response_accuracy"])
     assert np.isnan(trial["audio__correct_response_count"])
-

@@ -25,4 +25,3 @@ def test_generate_synthetic_dataset_is_deterministic(tmp_path: Path) -> None:
     first_imu = next(first.root.glob("P*/S01/T01/imu.csv")).read_bytes()
     second_imu = next(second.root.glob("P*/S01/T01/imu.csv")).read_bytes()
     assert first_imu == second_imu
-

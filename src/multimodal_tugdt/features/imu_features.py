@@ -60,9 +60,7 @@ def _base_signal_features(frame: pd.DataFrame, duration: float) -> dict[str, flo
     else:
         features["imu__pelvis_jerk_rms_m_s3"] = float("nan")
     features["imu__angular_velocity_rms_rad_s"] = (
-        _rms(frame["gyro_yaw"].to_numpy(dtype=float))
-        if "gyro_yaw" in frame
-        else float("nan")
+        _rms(frame["gyro_yaw"].to_numpy(dtype=float)) if "gyro_yaw" in frame else float("nan")
     )
     return features
 

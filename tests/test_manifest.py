@@ -92,4 +92,3 @@ def test_manifest_reports_missing_referenced_file(tmp_path: Path) -> None:
 
     assert not report.is_valid
     assert any("does not exist" in error for error in report.errors)
-

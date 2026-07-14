@@ -122,4 +122,3 @@ def create_imu_loader(config: IMUConfig) -> BaseIMULoader:
         "mvnx": MVNXLoader,
     }
     return loaders[config.format](config)
-

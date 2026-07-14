@@ -12,4 +12,3 @@ def configure_logging(verbose: bool = False) -> None:
         format="%(levelname)s %(name)s: %(message)s",
         force=True,
     )
-

@@ -63,12 +63,8 @@ def _window_features(
         "audio__silence_duration_s": max(0.0, duration - speech_duration),
         "audio__speech_ratio": speech_duration / duration if duration > 0 else float("nan"),
         "audio__pause_count": len(pauses),
-        "audio__mean_pause_duration_s": (
-            float(np.mean(pauses)) if pauses else float("nan")
-        ),
-        "audio__max_pause_duration_s": (
-            float(np.max(pauses)) if pauses else float("nan")
-        ),
+        "audio__mean_pause_duration_s": (float(np.mean(pauses)) if pauses else float("nan")),
+        "audio__max_pause_duration_s": (float(np.max(pauses)) if pauses else float("nan")),
         "audio__first_response_latency_s": (
             eligible_response_starts[0] - first_response_reference
             if first_response_reference is not None and eligible_response_starts
@@ -114,4 +110,3 @@ def extract_trial_and_phase_audio_features(
         )
         rows.append(phase_row)
     return rows
-

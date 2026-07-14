@@ -26,4 +26,3 @@ study:
 def test_cli_returns_nonzero_for_missing_config(tmp_path: Path) -> None:
     result = main(["validate-manifest", "--config", str(tmp_path / "missing.yaml")])
     assert result == 2
-

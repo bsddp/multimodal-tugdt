@@ -236,9 +236,7 @@ def preprocess_imu(frame: pd.DataFrame, config: IMUConfig) -> IMUPreprocessResul
         )
 
     filter_columns = [
-        column
-        for column in (*ACCELERATION_COLUMNS, *ANGULAR_VELOCITY_COLUMNS)
-        if column in working
+        column for column in (*ACCELERATION_COLUMNS, *ANGULAR_VELOCITY_COLUMNS) if column in working
     ]
     for column in filter_columns:
         working[column] = _lowpass_series(
@@ -260,4 +258,3 @@ def preprocess_imu(frame: pd.DataFrame, config: IMUConfig) -> IMUPreprocessResul
     quality.output_sample_count = len(resampled)
     quality.output_rate_hz = estimate_sampling_rate(resampled["timestamp"])
     return IMUPreprocessResult(frame=resampled, quality=quality)
-

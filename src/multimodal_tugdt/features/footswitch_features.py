@@ -77,9 +77,7 @@ def _measure_window(events: pd.DataFrame, start: float, end: float) -> EventMeas
 def _combine(measurements: list[EventMeasurements]) -> EventMeasurements:
     def concatenate(attribute: str) -> np.ndarray:
         arrays = [
-            getattr(item, attribute)
-            for item in measurements
-            if getattr(item, attribute).size
+            getattr(item, attribute) for item in measurements if getattr(item, attribute).size
         ]
         return np.concatenate(arrays) if arrays else np.array([], dtype=float)
 
@@ -122,9 +120,7 @@ def _measurement_features(values: EventMeasurements) -> dict[str, float | int]:
         "footswitch__mean_step_time_s": mean_step,
         "footswitch__step_time_sd_s": step_sd,
         "footswitch__step_time_cv_pct": (
-            step_sd / mean_step * 100
-            if np.isfinite(step_sd) and mean_step > 0
-            else float("nan")
+            step_sd / mean_step * 100 if np.isfinite(step_sd) and mean_step > 0 else float("nan")
         ),
     }
 

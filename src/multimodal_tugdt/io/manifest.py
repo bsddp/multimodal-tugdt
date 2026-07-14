@@ -117,9 +117,7 @@ def validate_manifest(config: ProjectConfig, *, check_files: bool = True) -> Man
 
         absent = [name.removesuffix("_path") for name in TRIAL_MODALITY_COLUMNS if not paths[name]]
         if absent:
-            report.warnings.append(
-                f"Row {row_number}: optional data absent: {', '.join(absent)}"
-            )
+            report.warnings.append(f"Row {row_number}: optional data absent: {', '.join(absent)}")
         report.records.append(record)
 
     return report

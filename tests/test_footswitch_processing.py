@@ -55,4 +55,3 @@ def test_footswitch_all_zero_signal_is_retained_without_events() -> None:
     assert result.events.empty
     assert result.quality.left_contact_count == 0
     assert result.quality.right_contact_count == 0
-

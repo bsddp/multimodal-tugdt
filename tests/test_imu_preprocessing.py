@@ -73,9 +73,7 @@ def test_short_signal_does_not_crash_filtering(tmp_path: Path) -> None:
 
 
 def test_cutoff_must_be_below_target_nyquist(tmp_path: Path) -> None:
-    frame = pd.DataFrame(
-        {"timestamp": np.arange(0, 1, 0.01), "acc_ap": np.zeros(100)}
-    )
+    frame = pd.DataFrame({"timestamp": np.arange(0, 1, 0.01), "acc_ap": np.zeros(100)})
     config = _imu_config(
         tmp_path,
         "  target_sampling_rate_hz: 10\n  lowpass_cutoff_hz: 6",
@@ -102,4 +100,3 @@ def test_unit_conversion_produces_si_values(tmp_path: Path) -> None:
 
     assert result.frame["acc_ap"].mean() == pytest.approx(9.80665, rel=1e-3)
     assert result.frame["gyro_yaw"].mean() == pytest.approx(np.pi, rel=1e-3)
-

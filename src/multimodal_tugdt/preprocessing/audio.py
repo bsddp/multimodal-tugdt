@@ -122,9 +122,7 @@ def run_energy_vad(audio: AudioData, config: AudioConfig) -> AudioVADResult:
         output_sampling_rate_hz=audio.sampling_rate_hz,
         sample_count=len(audio.samples),
         duration_seconds=audio.duration_seconds,
-        clipping_ratio=float(
-            (np.abs(audio.samples) >= config.clipping_threshold).mean()
-        ),
+        clipping_ratio=float((np.abs(audio.samples) >= config.clipping_threshold).mean()),
         frame_count=frame_count,
         energy_threshold_dbfs=config.energy_threshold_dbfs,
         speech_segment_count=len(speech),
@@ -132,4 +130,3 @@ def run_energy_vad(audio: AudioData, config: AudioConfig) -> AudioVADResult:
         speech_ratio=(speech_duration / audio.duration_seconds),
     )
     return AudioVADResult(intervals, frames, quality)
-

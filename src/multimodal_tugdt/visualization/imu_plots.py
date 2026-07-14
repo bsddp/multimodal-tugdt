@@ -65,4 +65,3 @@ def plot_imu_overview(
     figure.savefig(destination, dpi=150)
     plt.close(figure)
     return destination
-

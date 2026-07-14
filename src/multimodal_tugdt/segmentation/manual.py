@@ -66,18 +66,14 @@ def load_segments(
                 f"Annotation row {row_number + 2} has non-numeric start or end time."
             ) from exc
         if start >= end:
-            raise ValueError(
-                f"Annotation row {row_number + 2} must have start_time < end_time."
-            )
+            raise ValueError(f"Annotation row {row_number + 2} must have start_time < end_time.")
         tolerance = 1e-6
         if trial_start is not None and start < trial_start - tolerance:
             raise ValueError(
                 f"Segment '{name}' starts before the trial ({start:g} < {trial_start:g})."
             )
         if trial_end is not None and end > trial_end + tolerance:
-            raise ValueError(
-                f"Segment '{name}' ends after the trial ({end:g} > {trial_end:g})."
-            )
+            raise ValueError(f"Segment '{name}' ends after the trial ({end:g} > {trial_end:g}).")
         confidence_value = row.get("confidence")
         confidence = None if pd.isna(confidence_value) else float(confidence_value)
         if confidence is not None and not 0 <= confidence <= 1:
@@ -99,9 +95,7 @@ def slice_segment(frame: pd.DataFrame, segment: Segment) -> pd.DataFrame:
     """Return samples in a segment using a half-open interval [start, end)."""
     if "timestamp" not in frame:
         raise ValueError("Cannot segment data without a timestamp column.")
-    mask = (frame["timestamp"] >= segment.start_time) & (
-        frame["timestamp"] < segment.end_time
-    )
+    mask = (frame["timestamp"] >= segment.start_time) & (frame["timestamp"] < segment.end_time)
     result = frame.loc[mask].copy()
     if result.empty:
         raise ValueError(
@@ -109,4 +103,3 @@ def slice_segment(frame: pd.DataFrame, segment: Segment) -> pd.DataFrame:
             f"[{segment.start_time:g}, {segment.end_time:g})."
         )
     return result
-

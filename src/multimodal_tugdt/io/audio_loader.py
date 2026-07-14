@@ -124,9 +124,7 @@ def load_audio(path: str | Path, config: AudioConfig) -> AudioData:
         original_rate, samples = _decode_wav(source)
         decoded_rate = original_rate
     else:
-        original_rate, samples = _decode_with_ffmpeg(
-            source, config.target_sampling_rate_hz
-        )
+        original_rate, samples = _decode_with_ffmpeg(source, config.target_sampling_rate_hz)
         decoded_rate = config.target_sampling_rate_hz
     if original_rate <= 0 or samples.size == 0:
         raise AudioLoadError(f"Audio has no samples or an invalid sampling rate: {source}")

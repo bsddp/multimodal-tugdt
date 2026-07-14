@@ -29,9 +29,7 @@ imu:
 
 def test_trial_and_phase_features_use_straight_walk_annotations(tmp_path: Path) -> None:
     timestamps = np.arange(0.0, 20.0 + 0.01, 0.01)
-    walking = ((timestamps >= 3) & (timestamps < 8)) | (
-        (timestamps >= 10) & (timestamps < 15)
-    )
+    walking = ((timestamps >= 3) & (timestamps < 8)) | ((timestamps >= 10) & (timestamps < 15))
     turning = (timestamps >= 8) & (timestamps < 10)
     frame = pd.DataFrame(
         {
@@ -71,4 +69,3 @@ def test_trial_and_phase_features_use_straight_walk_annotations(tmp_path: Path) 
     assert np.isnan(turn["imu__step_count"])
     assert turn["imu__turn_duration_s"] == pytest.approx(2.0)
     assert turn["imu__peak_yaw_velocity_rad_s"] == pytest.approx(1.0, rel=0.01)
-

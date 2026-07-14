@@ -81,9 +81,6 @@ def test_low_overlap_and_duration_difference_produce_warning() -> None:
 
 def test_csv_timeline_rejects_nonmonotonic_timestamps(tmp_path: Path) -> None:
     path = tmp_path / "footswitch.csv"
-    pd.DataFrame({"timestamp": [0.0, 0.2, 0.1], "left": [0, 1, 0]}).to_csv(
-        path, index=False
-    )
+    pd.DataFrame({"timestamp": [0.0, 0.2, 0.1], "left": [0, 1, 0]}).to_csv(path, index=False)
     with pytest.raises(SynchronizationError, match="nonmonotonic"):
         read_csv_timeline(path, "footswitch", "timestamp")
-

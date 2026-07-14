@@ -30,6 +30,7 @@ from multimodal_tugdt.modeling.evaluation import evaluate_baselines
 from multimodal_tugdt.preprocessing.audio import run_energy_vad
 from multimodal_tugdt.preprocessing.footswitch import process_footswitch
 from multimodal_tugdt.preprocessing.imu import preprocess_imu
+from multimodal_tugdt.reporting.research_report import generate_research_report
 from multimodal_tugdt.segmentation.manual import Segment, load_segments
 from multimodal_tugdt.synchronization.timeline import (
     AlignmentResult,
@@ -814,3 +815,13 @@ def run_baselines_project(config: ProjectConfig, records: list[TrialRecord]) -> 
         len(evaluation.skipped),
         summary_path,
     )
+
+
+def generate_report_project(
+    config: ProjectConfig,
+    records: list[TrialRecord],
+    output_path: str | Path | None = None,
+) -> WorkflowResult:
+    """Generate the aggregate Markdown research summary."""
+    report = generate_research_report(config, records, output_path)
+    return WorkflowResult(report.trial_count, 0, 0, report.path)

@@ -50,14 +50,10 @@ def _write_imu(path: Path, condition: str, sampling_rate: int, seed: int) -> Non
         walking_elapsed = _walking_elapsed(time)
         walking = walking_elapsed is not None
         turning = 8.0 <= time < 10.0
-        gait = (
-            math.sin(2 * math.pi * gait_frequency * walking_elapsed) if walking else 0.0
-        )
+        gait = math.sin(2 * math.pi * gait_frequency * walking_elapsed) if walking else 0.0
         noise = rng.gauss(0.0, 0.015)
         mediolateral = (
-            0.12 * math.cos(2 * math.pi * gait_frequency * walking_elapsed)
-            if walking
-            else 0.0
+            0.12 * math.cos(2 * math.pi * gait_frequency * walking_elapsed) if walking else 0.0
         ) + noise
         yaw_velocity = 1.4 * math.sin(math.pi * (time - 8) / 2) if turning else noise
         vertical_dynamic = 0.55 * max(gait, 0.0)

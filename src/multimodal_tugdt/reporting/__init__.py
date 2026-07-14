@@ -1,0 +1,1 @@
+"""Aggregate research-report generation."""

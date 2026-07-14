@@ -127,12 +127,8 @@ def process_footswitch(
     changed_sample_count = int(
         np.count_nonzero(left != raw_left) + np.count_nonzero(right != raw_right)
     )
-    left_contact_count = int(
-        ((events["side"] == "left") & (events["event"] == "contact")).sum()
-    )
-    right_contact_count = int(
-        ((events["side"] == "right") & (events["event"] == "contact")).sum()
-    )
+    left_contact_count = int(((events["side"] == "left") & (events["event"] == "contact")).sum())
+    right_contact_count = int(((events["side"] == "right") & (events["event"] == "contact")).sum())
     quality = FootswitchQualityReport(
         input_sample_count=len(working),
         sampling_rate_hz=sampling_rate,

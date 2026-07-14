@@ -117,4 +117,3 @@ synchronization:
     footswitch = qc.loc[qc["target_modality"] == "footswitch"]
     assert set(footswitch["qc_status"]) == {"fail"}
     assert footswitch["qc_notes"].str.contains("no explicit").all()
-

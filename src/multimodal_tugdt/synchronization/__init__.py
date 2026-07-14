@@ -13,4 +13,3 @@ __all__ = [
     "Timeline",
     "apply_offset_to_timestamps",
 ]
-

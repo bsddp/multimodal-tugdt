@@ -5,12 +5,13 @@ multimodal data collected during single-task and dual-task Timed Up and Go (TUG)
 The data contract covers IMU/Xsens-derived motion, video, audio, footswitch signals, manual
 phase annotations, and clinical or demographic metadata.
 
-> Status: Milestones 1–6 are implemented. The repository provides the project and manifest
+> Status: Milestones 1–7 are implemented. The repository provides the project and manifest
 > contracts, privacy-safe synthetic data, configurable IMU CSV adapters, signal quality control,
 > filtering, resampling, manual TUG phase segmentation, interpretable IMU features, plots, and
 > explicit manual-offset synchronization with auditable metadata. Audio energy VAD, footswitch
 > event analysis, video inspection, optional two-dimensional pose proxies, feature-level fusion,
-> and participant-grouped baseline models are research baselines rather than clinical claims.
+> participant-grouped baseline models, aggregate reporting, and the executed demonstration
+> notebook are research tools rather than clinical claims.
 
 ## Why this project exists
 
@@ -24,7 +25,7 @@ The long-term research goal is to support clinically interpretable investigation
 cognitive-motor interference. This software is a research tool. It does not diagnose disease
 and currently makes no clinical claims.
 
-## Supported through Milestone 6
+## Supported through Milestone 7
 
 - YAML configuration with paths resolved from an explicit project root
 - CSV participant/trial manifest with optional missing modalities
@@ -69,6 +70,11 @@ and currently makes no clinical claims.
 - Participant-stratified grouped binary classification with logistic and random-forest baselines
 - Fold metrics, summary comparisons, out-of-fold predictions, skipped evaluations, and a split
   audit proving zero participant overlap
+- Deterministic aggregate Markdown reporting without participant IDs, raw paths, or individual
+  feature values
+- An executed synthetic-workflow notebook with modality, QC, and interpretation checks
+- A public synthetic report example, reproducibility checklist, and end-to-end architecture diagram
+- Citation metadata and continuous integration across supported Python versions
 - Automated unit and integration tests
 
 Video remains intentionally absent from the committed synthetic demo. That absence exercises
@@ -128,6 +134,7 @@ tugdt process-video --config configs/example.yaml
 tugdt extract-features --config configs/example.yaml
 tugdt fuse-features --config configs/example.yaml
 tugdt run-baselines --config configs/example.yaml
+tugdt generate-report --config configs/example.yaml
 ```
 
 The committed demonstration contains one synthetic participant, so `modeling.enabled` is false in
@@ -169,14 +176,32 @@ outputs/modeling/predictions.csv
 outputs/modeling/split_audit.csv
 outputs/modeling/skipped_evaluations.csv
 outputs/modeling/modeling_metadata.json
+outputs/reports/research_summary.md
 outputs/plots/*_imu.png
 outputs/plots/*_synchronization.png
 ```
+
+The generated report is aggregate by design: it omits participant identifiers, raw paths, and
+participant-level measurements. A versioned synthetic example is available at
+[the public research summary](docs/example_outputs/synthetic_research_summary.md).
+
+Rebuild and execute the demonstration notebook with:
+
+```bash
+python scripts/build_demo_notebook.py
+python -m jupyter nbconvert --execute --to notebook --inplace \
+  notebooks/01_synthetic_workflow.ipynb
+```
+
+The committed [executed notebook](notebooks/01_synthetic_workflow.ipynb) runs the CLI, inspects
+aggregate modality and QC artifacts, renders the report, and checks the intended missing-video
+behavior. It does not report model performance from the one-participant synthetic fixture.
 
 Run the test suite and code checks:
 
 ```bash
 pytest
+ruff format --check .
 ruff check .
 ```
 
@@ -196,8 +221,15 @@ multimodal-tugdt/
 │   ├── feature_dictionary.md
 │   ├── imu_pipeline.md
 │   ├── modeling.md
+│   ├── pipeline_diagram.md
+│   ├── reproducibility.md
 │   ├── synchronization.md
-│   └── video_pipeline.md
+│   ├── video_pipeline.md
+│   └── example_outputs/
+├── notebooks/
+│   └── 01_synthetic_workflow.ipynb
+├── scripts/
+│   └── build_demo_notebook.py
 ├── src/multimodal_tugdt/
 │   ├── cli.py
 │   ├── config.py
@@ -211,8 +243,10 @@ multimodal-tugdt/
 │   ├── features/
 │   ├── fusion/
 │   ├── modeling/
+│   ├── reporting/
 │   └── visualization/
 ├── tests/
+├── CITATION.cff
 ├── README.md
 └── pyproject.toml
 ```
@@ -264,6 +298,10 @@ the two-dimensional proxy features are documented in [video processing](docs/vid
 Feature fusion, missing-modality handling, grouped split rules, metrics, and modeling artifacts are
 documented in [fusion and baseline modeling](docs/modeling.md).
 
+The [complete architecture diagram](docs/pipeline_diagram.md) shows how configuration, sensor QC,
+clock alignment, phase features, fusion, grouped modeling, and aggregate reporting connect. Use
+the [reproducibility checklist](docs/reproducibility.md) when adapting the software to a study.
+
 ## Synthetic demonstration
 
 The generator creates a pair of single-task and dual-task trials for each requested synthetic
@@ -296,8 +334,9 @@ public release. Public examples must be synthetic or appropriately de-identified
 6. **Milestone 6 — fusion and baselines (complete):** modality-prefixed feature fusion,
    availability indicators, fold-local preprocessing, participant-grouped evaluation, single- and
    multimodal comparisons, and split-audit artifacts.
-7. **Milestone 7 — research presentation:** reports, example outputs, notebooks, limitations,
-   and citation guidance.
+7. **Milestone 7 — research presentation (complete):** aggregate report, public example output,
+   executed tutorial notebook, architecture and reproducibility documentation, CI, and citation
+   guidance.
 
 Deep learning, diagnostic claims, automatic silent alignment, and row-level random splitting
 are outside the current scope.
@@ -340,6 +379,13 @@ are outside the current scope.
 - The committed one-participant demo cannot support valid modeling; it demonstrates fusion only.
 - Paired single-/dual-task cost calculation is not automatically added to the fused table in this
   milestone and must not be inferred from condition labels alone.
+- The aggregate report summarizes artifact availability and QC counts. It intentionally omits
+  individual measurements and cannot replace a protocol-specific statistical analysis.
+
+## Citation
+
+Use the repository commit or release version needed to reproduce an analysis. GitHub can read the
+included [citation metadata](CITATION.cff); no DOI or publication is claimed by this repository.
 
 ## License
 

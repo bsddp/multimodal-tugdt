@@ -28,9 +28,9 @@ def test_load_and_apply_manual_segments(tmp_path: Path) -> None:
 
 def test_invalid_segment_bounds_are_rejected(tmp_path: Path) -> None:
     annotations = tmp_path / "annotations.csv"
-    pd.DataFrame(
-        {"segment_name": ["turn_1"], "start_time": [4.0], "end_time": [3.0]}
-    ).to_csv(annotations, index=False)
+    pd.DataFrame({"segment_name": ["turn_1"], "start_time": [4.0], "end_time": [3.0]}).to_csv(
+        annotations, index=False
+    )
 
     with pytest.raises(ValueError, match="start_time < end_time"):
         load_segments(annotations)
@@ -40,4 +40,3 @@ def test_empty_segment_slice_is_rejected() -> None:
     frame = pd.DataFrame({"timestamp": [0.0, 1.0], "x": [1, 2]})
     with pytest.raises(ValueError, match="contains no samples"):
         slice_segment(frame, Segment("missing", 3.0, 4.0))
-

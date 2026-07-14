@@ -14,6 +14,7 @@ from multimodal_tugdt.logging_utils import configure_logging
 from multimodal_tugdt.pipeline import (
     extract_project_features,
     fuse_project_features,
+    generate_report_project,
     preprocess_project,
     process_audio_project,
     process_footswitch_project,
@@ -105,9 +106,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     baselines.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
 
+    report = subparsers.add_parser(
+        "generate-report",
+        help="Generate a privacy-conscious aggregate Markdown research report.",
+    )
+    report.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
+    report.add_argument("--output", type=Path, default=None)
+
     run_all = subparsers.add_parser(
         "run-all",
-        help="Run implemented stages through fusion and optionally grouped baselines.",
+        help="Run all implemented stages and generate an aggregate research report.",
     )
     run_all.add_argument("--config", type=Path, default=Path("configs/example.yaml"))
     return parser
@@ -258,6 +266,15 @@ def _baselines_command(args: argparse.Namespace) -> int:
     return 1 if result.failed else 0
 
 
+def _report_command(args: argparse.Namespace) -> int:
+    config, records = _validated_records(args.config)
+    result = generate_report_project(config, records, args.output)
+    LOGGER.info(
+        "Research summary generated for %d trials: %s", result.succeeded, result.output_path
+    )
+    return 0
+
+
 def _run_all_command(args: argparse.Namespace) -> int:
     config, records = _validated_records(args.config)
     preprocessing = preprocess_project(config, records)
@@ -278,10 +295,11 @@ def _run_all_command(args: argparse.Namespace) -> int:
         return 1
     fusion = fuse_project_features(config, records)
     baseline = run_baselines_project(config, records) if config.modeling.enabled else None
+    report = generate_report_project(config, records)
     LOGGER.info(
-        "Milestone 6 pipeline complete. IMU QC: %s; synchronization QC: %s; "
+        "Milestone 7 pipeline complete. IMU QC: %s; synchronization QC: %s; "
         "IMU features: %s; audio features: %s; footswitch features: %s; video features: %s; "
-        "fused features: %s; modeling: %s",
+        "fused features: %s; modeling: %s; report: %s",
         preprocessing.output_path,
         synchronization.output_path,
         features.output_path,
@@ -290,6 +308,7 @@ def _run_all_command(args: argparse.Namespace) -> int:
         video.output_path,
         fusion.output_path,
         baseline.output_path if baseline is not None else "disabled in configuration",
+        report.output_path,
     )
     return 1 if baseline is not None and baseline.failed else 0
 
@@ -320,6 +339,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _fusion_command(args)
         if args.command == "run-baselines":
             return _baselines_command(args)
+        if args.command == "generate-report":
+            return _report_command(args)
         if args.command == "run-all":
             return _run_all_command(args)
     except (ConfigurationError, OSError, ValueError) as exc:
